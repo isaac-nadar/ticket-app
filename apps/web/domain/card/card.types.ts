@@ -1,0 +1,8 @@
+export type CardType = "BUG" | "FEATURE";
+
+export type Card = {
+  id: string;
+  title: string;
+  type: CardType;
+  columnId: string;
+};

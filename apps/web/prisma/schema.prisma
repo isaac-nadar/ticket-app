@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Board {
+  id        String      @id @default(uuid())
+  name      String
+  users     BoardUser[]
+  createdAt DateTime    @default(now())
+  columns   Column[]
+}
+
+model BoardUser {
+  boardId String
+  userId  String
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([boardId, userId])
+}
+
+model Column {
+  id       String @id @default(uuid())
+  name     String
+  position Int
+  boardId  String
+  cards    Card[]
+  board    Board  @relation(fields: [boardId], references: [id])
+}
+
+model Card {
+  id        String   @id @default(uuid())
+  title     String
+  type      CardType
+  columnId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  position  Int
+  column    Column   @relation(fields: [columnId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  entity    String
+  entityId  String
+  action    String
+  payload   Json
+  createdAt DateTime @default(now())
+}
+
+// model Notification {
+//   id        String   @id @default(uuid())
+//   userId    String
+//   type      String
+//   message   String
+//   read      Boolean  @default(false)
+//   createdAt DateTime @default(now())
+// }
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String
+  keys      Json
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  active    Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+
+  boardUsers    BoardUser[]
+  notifications Notification[]
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum CardType {
+  BUG
+  FEATURE
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  body      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, read])
+}

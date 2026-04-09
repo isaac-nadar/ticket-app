@@ -1,0 +1,28 @@
+image: atlassian/default-image:4
+
+pipelines:
+  branches:
+    main:
+      - step:
+          name: Deploy to Production
+          deployment: production
+          script:
+            - echo "Starting deployment..."
+
+            - |
+              ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} << EOF
+              set -e
+
+              echo "Connected to EC2"
+              cd ${DEPLOY_PATH}
+
+              echo "Pulling latest code"
+              git fetch origin
+              git reset --hard origin/main
+
+              echo "Building and starting containers"
+              docker compose -f docker-compose.prod.yml down
+              docker compose -f docker-compose.prod.yml up -d --build
+
+              echo "Deployment complete"
+              EOF
