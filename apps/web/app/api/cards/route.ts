@@ -51,11 +51,11 @@ export async function PATCH(req: NextRequest) {
     const user = requireUser(req);
     await enforceRateLimit(user.userId);
     const { cardId, targetColumnId, targetPosition } = await req.json();
-
     const card = await CardService.reorderCard(
       cardId,
       targetColumnId,
       targetPosition,
+      user.userId,
     );
 
     return NextResponse.json(card);

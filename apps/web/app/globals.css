@@ -1,26 +1,160 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
+/* 1. UNIFIED THEME MAPPING */
 @theme inline {
+  /* Shadcn standard variables */
+  --font-sans: var(--theme-font);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Shadcn border radii */
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+
+  /* OUR CUSTOM STRUCTURAL VARIABLES */
+  --border-width-ui: var(--ui-border-width);
+  --radius-ui: var(--ui-radius);
+  --shadow-ui: var(--ui-shadow);
+  --shadow-ui-hover: var(--ui-shadow-hover);
 }
 
-@media (prefers-color-scheme: dark) {
+@layer base {
+  /* --- 1. LIGHT MODE --- */
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #f9fafb;
+    --foreground: #1f2937;
+    --card: #ffffff;
+    --card-foreground: #1f2937;
+    --popover: #ffffff;
+    --popover-foreground: #1f2937;
+    --primary: #2563eb;
+    --primary-foreground: #ffffff;
+    --secondary: #f1f5f9;
+    --secondary-foreground: #0f172a;
+    --muted: #f1f5f9;
+    --muted-foreground: #64748b;
+    --accent: #f1f5f9;
+    --accent-foreground: #0f172a;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+    --border: #e5e7eb;
+    --input: #e5e7eb;
+    --ring: #2563eb;
+    --radius: 0.5rem;
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* --- 2. DARK MODE --- */
+  .dark {
+    --background: #0f172a;
+    --foreground: #f8fafc;
+    --card: #1e293b;
+    --card-foreground: #f8fafc;
+    --popover: #1e293b;
+    --popover-foreground: #f8fafc;
+    --primary: #3b82f6;
+    --primary-foreground: #ffffff;
+    --secondary: #1e293b;
+    --secondary-foreground: #f8fafc;
+    --muted: #1e293b;
+    --muted-foreground: #94a3b8;
+    --accent: #1e293b;
+    --accent-foreground: #f8fafc;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+    --border: #334155;
+    --input: #334155;
+    --ring: #3b82f6;
+  }
+
+  /* --- 3. RETRO MODE --- */
+  .retro {
+    --background: #eaddc5;
+    --foreground: #0b1d27;
+    --card: #f5eedf;
+    --card-foreground: #0b1d27;
+    --popover: #f5eedf;
+    --popover-foreground: #0b1d27;
+    --primary: #b83d1c;
+    --primary-foreground: #eaddc5;
+    --secondary: #1aa6a5; /* Teal */
+    --secondary-foreground: #eaddc5;
+    --muted: #dfd2bc; /* Darker cream for hover states */
+    --muted-foreground: #0b1d27;
+    --accent: #1aa6a5;
+    --accent-foreground: #eaddc5;
+    --destructive: #b83d1c;
+    --destructive-foreground: #eaddc5;
+    --border: #1aa6a5;
+    --input: #1aa6a5;
+    --ring: #0b1d27;
+  }
+
+  /* --- CYBERPUNK OVERRIDE (Dark + Retro) --- */
+  .dark[data-style="retro"] {
+    --border: #06b6d4;
+    --retro-shadow-color: #06b6d4;
+    --input: #06b6d4;
+    --ring: #06b6d4;
+  }
+
+  /* --- BASE HTML SETUP --- */
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    transition:
+      background-color 0.3s ease,
+      color 0.3s ease;
+    @apply bg-background text-foreground;
+  }
+
+  /* --- STRUCTURAL TOKENS --- */
+  :root,
+  [data-style="corporate"] {
+    --theme-font: var(--font-inter), sans-serif;
+    --ui-border-width: 1px;
+    --ui-radius: var(--radius);
+    --ui-shadow:
+      0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --ui-shadow-hover: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+    --ui-button-y: 0px;
+  }
+
+  [data-style="retro"] {
+    --theme-font: var(--font-space-mono), monospace;
+    --ui-border-width: 3px;
+    --ui-radius: 0px;
+    --ui-shadow: 4px 4px 0px var(--retro-shadow-color, var(--foreground));
+    --ui-shadow-hover: 6px 6px 0px var(--retro-shadow-color, var(--foreground));
+    --ui-button-y: 4px;
+  }
 }

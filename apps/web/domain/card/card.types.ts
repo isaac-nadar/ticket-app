@@ -5,4 +5,7 @@ export type Card = {
   title: string;
   type: CardType;
   columnId: string;
+  description?: string;
+  assigneeId?: string;
+  version: number;
 };

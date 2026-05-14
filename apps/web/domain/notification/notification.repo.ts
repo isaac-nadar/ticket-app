@@ -1,12 +1,18 @@
 import prisma from "@/lib/db";
 
 export const NotificationRepository = {
-  create: async (userId: string, type: string, body?: string) => {
+  create: async (
+    userId: string,
+    type: string,
+    title: string,
+    body?: string,
+  ) => {
+    console.log({ userId, type });
     return prisma.notification.create({
       data: {
         userId,
-        type,
-        body,
+        title: type,
+        body: title,
       },
     });
   },
@@ -53,5 +59,20 @@ export const NotificationRepository = {
       orderBy: { createdAt: "desc" },
       take: 50,
     });
+  },
+
+  findForUserPaginated: async (
+    userId: string,
+    limit: number,
+    cursor?: string,
+  ) => {
+    const notifications = await prisma.notification.findMany({
+      where: { userId },
+      take: limit + 1, // Fetch one extra record to see if a next page exists
+      cursor: cursor ? { id: cursor } : undefined,
+      orderBy: { createdAt: "desc" },
+    });
+
+    return notifications;
   },
 };

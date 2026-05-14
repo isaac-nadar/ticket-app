@@ -1,40 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcrypt";
 import prisma from "@/lib/db";
+import bcrypt from "bcrypt";
 import { signJwt } from "@/lib/jwt";
 import { withCors } from "@/lib/cors";
 
-export async function POST(req: NextRequest) {
+import { withErrorHandler } from "@/lib/api-wrapper";
+import { UnauthorizedError } from "@/lib/errors";
+
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const { email, password } = await req.json();
 
-  const user = await prisma.user.findUnique({
-    where: { email },
-  });
+  // 1. Find User
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) throw new UnauthorizedError("Invalid email or password");
 
-  if (!user) {
-    return NextResponse.json(
-      { error: "Invalid credentials" },
-      { status: 401 }
-    );
-  }
+  // 2. Verify Password
+  const isValid = await bcrypt.compare(password, user.password);
+  if (!isValid) throw new UnauthorizedError("Invalid email or password");
 
-  const valid = await bcrypt.compare(
-    password,
-    user.password
-  );
-
-  if (!valid) {
-    return NextResponse.json(
-      { error: "Invalid credentials" },
-      { status: 401 }
-    );
-  }
-
+  // 3. Generate JWT
   const token = signJwt({
     userId: user.id,
     role: user.role,
   });
 
-  const res = NextResponse.json({ token });
-  return withCors(res, req.headers.get("origin"));
-}
+  const response = NextResponse.json({
+    ok: true,
+    userId: user.id,
+    token: token,
+  });
+
+  // 4. THE MAGIC: Set the HttpOnly Cookie
+  response.cookies.set({
+    name: "kanban_token",
+    value: token,
+    httpOnly: true, // Blocks JavaScript from reading it
+    secure: process.env.NODE_ENV === "production", // Requires HTTPS in prod
+    sameSite: "lax", // Protects against CSRF attacks
+    maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
+    path: "/", // Available across the whole app
+  });
+
+  // return response;
+  return withCors(response, req.headers.get("origin"));
+});

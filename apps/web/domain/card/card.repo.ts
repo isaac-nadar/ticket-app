@@ -1,7 +1,15 @@
 // apps/web/domain/card/card.repo.ts
 import prisma from "@/lib/db";
+import { CardType } from "./card.types";
 
 type Tx = typeof prisma;
+
+export type UpdateCardPayload = Partial<{
+  title: string;
+  description: string | null;
+  type: CardType;
+  assigneeId: string | null;
+}>;
 
 export const CardRepository = {
   create: async (title: string, type: "BUG" | "FEATURE", columnId: string) => {
@@ -61,72 +69,85 @@ export const CardRepository = {
     });
   },
 
-  reorder: async (
+  async reorder(
     cardId: string,
     targetColumnId: string,
     targetPosition: number,
-  ) => {
+  ) {
+    // 💡 INTERVIEW POINT: We wrap the logic in prisma.$transaction.
+    // Notice we use 'tx' (the transaction client) instead of 'prisma' inside the block!
     return prisma.$transaction(async (tx: Tx) => {
+      // 1. Fetch the card to know where it's coming from
       const card = await tx.card.findUnique({
         where: { id: cardId },
       });
 
-      if (!card) {
-        throw new Error("Card not found");
+      if (!card) throw new Error("Card not found");
+
+      // 2. Are we moving it within the SAME column?
+      if (card.columnId === targetColumnId) {
+        const isMovingDown = targetPosition > card.position;
+
+        // Shift the intermediate cards out of the way
+        await tx.card.updateMany({
+          where: {
+            columnId: targetColumnId,
+            position: isMovingDown
+              ? { gt: card.position, lte: targetPosition } // Shift up
+              : { gte: targetPosition, lt: card.position }, // Shift down
+          },
+          data: {
+            position: isMovingDown ? { decrement: 1 } : { increment: 1 },
+          },
+        });
       }
 
-      // Close gap in source column
-      await tx.card.updateMany({
-        where: {
-          columnId: card.columnId,
-          position: { gt: card.position },
-        },
-        data: {
-          position: { decrement: 1 },
-        },
-      });
+      // 3. Or are we moving it to a DIFFERENT column?
+      else {
+        // Shift cards in the NEW column down to make room
+        await tx.card.updateMany({
+          where: {
+            columnId: targetColumnId,
+            position: { gte: targetPosition },
+          },
+          data: {
+            position: { increment: 1 },
+          },
+        });
 
-      // Make room in target column
-      await tx.card.updateMany({
-        where: {
-          columnId: targetColumnId,
-          position: { gte: targetPosition },
-        },
-        data: {
-          position: { increment: 1 },
-        },
-      });
+        // Optional: You could also shift cards in the OLD column up to close the gap,
+        // but for V1, leaving a gap in the integer sequence is totally fine.
+      }
 
-      // Move card
-      return tx.card.update({
+      // 4. Finally, update the target card itself
+      const updatedCard = await tx.card.update({
         where: { id: cardId },
         data: {
           columnId: targetColumnId,
           position: targetPosition,
         },
       });
-    });
+
+      return updatedCard;
+    }); // <-- If any query fails before this bracket, Postgres undoes ALL of them.
   },
 
   findDoneOlderThan: async (days: number) => {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - days);
-
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
     return prisma.card.findMany({
       where: {
-        column: {
-          name: "Done",
-        },
-        updatedAt: {
-          lt: cutoff,
-        },
+        // We look for columns specifically named "Done" (case-insensitive usually best)
+        column: { name: { equals: "Done", mode: "insensitive" } },
+        updatedAt: { lt: cutoffDate }, // 'lt' means Less Than (older than) the cutoff
       },
-      select: {
-        id: true,
-        title: true,
-        columnId: true,
-        updatedAt: true,
-      },
+    });
+  },
+
+  async update(cardId: string, data: UpdateCardPayload) {
+    return prisma.card.update({
+      where: { id: cardId },
+      data,
     });
   },
 
@@ -135,6 +156,13 @@ export const CardRepository = {
       where: {
         id: { in: ids },
       },
+    });
+  },
+
+  async softDelete(cardId: string) {
+    return prisma.card.update({
+      where: { id: cardId },
+      data: { deletedAt: new Date() }, // Set the timestamp
     });
   },
 };
