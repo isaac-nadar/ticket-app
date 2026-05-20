@@ -3,6 +3,8 @@ import { Inter, Space_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { StyleProvider } from "./style-provider";
+import { ThemeSwitcher } from "@/components/theme-switcher";
+import { ProfileSettings } from "@/components/profile-settings";
 
 // 1. Load the Corporate Font (Variable weight)
 const inter = Inter({
@@ -34,7 +36,23 @@ export default function RootLayout({
         className={`${inter.variable} ${spaceMono.variable} antialiased`}
       >
         <Providers>
-          <StyleProvider>{children}</StyleProvider>
+          <StyleProvider>
+            {/* 👇 Wrap your app in a relative container */}
+            <div className="relative min-h-screen flex flex-col">
+              {/* 👇 Float the switcher globally in the top right corner! */}
+              <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
+                {/* Note: In a real app, you would fetch the user's name on the server
+                  and pass it down as `initialName`. For now, it will start empty
+                  and fill in when they type!
+                */}
+                <ProfileSettings />
+                <ThemeSwitcher />
+              </div>
+
+              {/* Your page content */}
+              <main className="flex-1 flex flex-col">{children}</main>
+            </div>
+          </StyleProvider>
         </Providers>
       </body>
     </html>

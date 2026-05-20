@@ -1,45 +1,52 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+// 👇 1. Import startTransition from React
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  startTransition,
+} from "react";
 
-type StyleType = "corporate" | "retro";
+type StyleContextType = {
+  style: string;
+  setStyle: (style: string) => void;
+};
 
-const StyleContext = createContext<{
-  uiStyle: StyleType;
-  setUiStyle: (style: StyleType) => void;
-}>({ uiStyle: "corporate", setUiStyle: () => {} });
+const StyleContext = createContext<StyleContextType>({
+  style: "corporate",
+  setStyle: () => {},
+});
 
 export function StyleProvider({ children }: { children: React.ReactNode }) {
-  const [uiStyle, setUiStyle] = useState<StyleType>("corporate");
-  const [mounted, setMounted] = useState(false);
+  const [style, setStyle] = useState("corporate");
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMounted(true);
-    // Load saved style from local storage
-    const saved = localStorage.getItem("ui-style") as StyleType;
-    if (saved) {
-      setUiStyle(saved);
-      document.documentElement.setAttribute("data-style", saved);
-    } else {
-      document.documentElement.setAttribute("data-style", "corporate");
+    const savedStyle = localStorage.getItem("kanban-ui-style") || "corporate";
+
+    // We always update the DOM immediately so the CSS changes instantly
+    document.documentElement.setAttribute("data-style", savedStyle);
+
+    if (savedStyle !== "corporate") {
+      // 👇 2. THE FIX: Tell React this is a low-priority background update
+      startTransition(() => {
+        setStyle(savedStyle);
+      });
     }
   }, []);
 
-  const handleSetStyle = (newStyle: StyleType) => {
-    setUiStyle(newStyle);
-    localStorage.setItem("ui-style", newStyle);
+  const handleSetStyle = (newStyle: string) => {
+    setStyle(newStyle);
+    localStorage.setItem("kanban-ui-style", newStyle);
     document.documentElement.setAttribute("data-style", newStyle);
   };
 
-  // Prevent hydration mismatch
-  if (!mounted) return <>{children}</>;
-
   return (
-    <StyleContext.Provider value={{ uiStyle, setUiStyle: handleSetStyle }}>
+    <StyleContext.Provider value={{ style, setStyle: handleSetStyle }}>
       {children}
     </StyleContext.Provider>
   );
 }
 
-export const useUiStyle = () => useContext(StyleContext);
+export const useStyle = () => useContext(StyleContext);

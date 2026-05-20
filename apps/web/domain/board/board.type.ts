@@ -4,8 +4,7 @@ import { Column } from "../column/column.types";
 export type Board = {
   id: string;
   name: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  users: any[];
+  users: BoardUser[];
   boardId: string;
   createdAt: string;
   columns: Column[];

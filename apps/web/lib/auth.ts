@@ -3,6 +3,8 @@ import { verifyJwt } from "./jwt";
 import { UnauthorizedError, ForbiddenError } from "./errors";
 
 export type AuthUser = {
+  name?: string;
+  avatar?: string;
   userId: string;
   email: string;
   role: "ADMIN" | "USER";

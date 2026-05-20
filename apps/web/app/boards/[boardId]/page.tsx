@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { BoardClient } from "./board-client";
 import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/jwt";
-import { ThemeSwitcher } from "@/components/theme-switcher";
+import { InviteButton } from "./invite-button";
 
 export default async function BoardPage({
   params,
@@ -19,9 +19,11 @@ export default async function BoardPage({
   if (!token) redirect("/login"); // Fallback safety
 
   let userId;
+  let userRole;
   try {
     const decoded = verifyJwt(token);
     userId = decoded.userId;
+    userRole = decoded.role;
   } catch {
     redirect("/login");
   }
@@ -49,13 +51,15 @@ export default async function BoardPage({
 
   // 4. Return the JSX completely OUTSIDE the try/catch!
   return (
-    <main className="h-screen bg-gray-50 flex flex-col">
-      {/* <ThemeSwitcher /> */}
-      <header className="p-4 bg-white border-b shadow-sm">
-        <h1 className="text-xl font-bold text-gray-800">{boardData.name}</h1>
+    <main className="h-screen flex flex-col">
+      <header className="p-4 bg-card border-b shadow-ui flex items-center justify-start gap-4  px-6  border-border/50  backdrop-blur-sm">
+        <h1 className="text-xl font-bold text-card-foreground capitalize">
+          {boardData.name}
+        </h1>
+        {userRole === "ADMIN" && <InviteButton boardId={boardData.id} />}
       </header>
 
-      <BoardClient initialBoard={boardData} />
+      <BoardClient initialBoard={boardData} userRole={userRole} />
     </main>
   );
 }

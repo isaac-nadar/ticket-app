@@ -1,3 +1,5 @@
+import { User } from "../user/user.types";
+
 export type CardType = "BUG" | "FEATURE";
 
 export type Card = {
@@ -8,4 +10,5 @@ export type Card = {
   description?: string;
   assigneeId?: string;
   version: number;
+  assignee: User;
 };

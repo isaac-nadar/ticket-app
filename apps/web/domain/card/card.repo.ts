@@ -7,7 +7,7 @@ type Tx = typeof prisma;
 export type UpdateCardPayload = Partial<{
   title: string;
   description: string | null;
-  type: CardType;
+  type: CardType | null;
   assigneeId: string | null;
 }>;
 

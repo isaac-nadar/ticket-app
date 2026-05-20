@@ -1,70 +1,106 @@
 "use client";
 
-import { useTheme } from "next-themes";
-import { useUiStyle } from "@/app/style-provider";
-import { useEffect, useState } from "react";
+import { useEffect, useState, startTransition } from "react";
+import { Palette, Moon, Sun, Gamepad2 } from "lucide-react";
+import { useStyle } from "@/app/style-provider";
+import { useTheme } from "next-themes"; // Assuming you use next-themes!
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 export function ThemeSwitcher() {
   const [mounted, setMounted] = useState(false);
+  const { style, setStyle } = useStyle();
   const { theme, setTheme } = useTheme();
-  const { uiStyle, setUiStyle } = useUiStyle();
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => setMounted(true), []);
-  if (!mounted) return null;
+  useEffect(() => {
+    startTransition(() => {
+      setMounted(true);
+    });
+  }, []);
+
+  // Skeleton to prevent layout shift before hydration
+  if (!mounted) {
+    return <div className="size-10 rounded-full bg-muted animate-pulse" />;
+  }
 
   return (
-    <div className="flex flex-col gap-4 bg-card border-ui border-border rounded-ui shadow-ui p-4 w-72 transition-all">
-      {/* COLOR THEME TOGGLES */}
-      <div>
-        <h3 className="text-sm font-bold text-foreground mb-2 uppercase tracking-widest">
-          Color Palette
-        </h3>
-        <div className="flex gap-2">
-          {["light", "dark", "retro"].map((t) => (
-            <button
-              key={t}
-              onClick={() => setTheme(t)}
-              className={`flex-1 py-1 text-sm border-ui rounded-ui transition-all ${
-                theme === t
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-transparent text-foreground border-border hover:bg-background"
-              }`}
-            >
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
-      </div>
+    <Popover>
+      <PopoverTrigger asChild>
+        {/* The beautiful, small circular floating icon */}
+        <Button
+          variant="outline"
+          size="icon"
+          className="cursor-pointer rounded-full size-10 shadow-sm bg-background border-ui"
+        >
+          <Palette className="size-5 text-foreground" />
+          <span className="sr-only">Toggle theme</span>
+        </Button>
+      </PopoverTrigger>
 
-      {/* UI STYLE TOGGLES */}
-      <div>
-        <h3 className="text-sm font-bold text-foreground mb-2 uppercase tracking-widest">
-          UI Style
-        </h3>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setUiStyle("corporate")}
-            className={`flex-1 py-1 text-sm border-ui rounded-ui transition-all ${
-              uiStyle === "corporate"
-                ? "bg-foreground text-background border-foreground"
-                : "bg-transparent text-foreground border-border hover:bg-background"
-            }`}
-          >
-            Corporate
-          </button>
-          <button
-            onClick={() => setUiStyle("retro")}
-            className={`flex-1 py-1 text-sm border-ui rounded-ui transition-all ${
-              uiStyle === "retro"
-                ? "bg-foreground text-background border-foreground"
-                : "bg-transparent text-foreground border-border hover:bg-background"
-            }`}
-          >
-            Retro 90s
-          </button>
+      <PopoverContent className="w-64 flex flex-col gap-6" align="end">
+        {/* AESTHETIC TOGGLE */}
+        <div className="flex flex-col gap-3">
+          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Aesthetic
+          </Label>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant={style === "corporate" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setStyle("corporate")}
+              className="w-full cursor-pointer"
+            >
+              Corporate
+            </Button>
+            <Button
+              variant={style === "retro" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setStyle("retro")}
+              className="w-full"
+            >
+              Retro
+            </Button>
+          </div>
         </div>
-      </div>
-    </div>
+
+        {/* COLOR MODE TOGGLE */}
+        <div className="flex flex-col gap-3">
+          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Color Mode
+          </Label>
+          <div className="grid grid-cols-3 gap-2">
+            <Button
+              variant={theme === "light" ? "default" : "outline"}
+              size="icon"
+              onClick={() => setTheme("light")}
+              className="w-full cursor-pointer"
+            >
+              <Sun className="size-4" />
+            </Button>
+            <Button
+              variant={theme === "dark" ? "default" : "outline"}
+              size="icon"
+              onClick={() => setTheme("dark")}
+              className="w-full cursor-pointer"
+            >
+              <Moon className="size-4" />
+            </Button>
+            <Button
+              variant={theme === "retro" ? "default" : "outline"}
+              size="icon"
+              onClick={() => setTheme("retro")}
+              className="w-full cursor-pointer"
+            >
+              <Gamepad2 className="size-4" />
+            </Button>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

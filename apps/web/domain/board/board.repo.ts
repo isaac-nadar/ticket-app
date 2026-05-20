@@ -77,11 +77,21 @@ export const BoardReadRepository = {
     return prisma.board.findUnique({
       where: { id: boardId },
       include: {
+        users: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, avatar: true },
+            },
+          },
+        },
         columns: {
           orderBy: { position: "asc" },
           include: {
             cards: {
               orderBy: { createdAt: "asc" },
+              include: {
+                assignee: true,
+              },
             },
           },
         },
