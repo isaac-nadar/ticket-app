@@ -2,15 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { CardRepository } from "@/domain/card/card.repo";
-// 1. Import your Redis client!
 import { redis } from "@/lib/redis";
 import { ColumnRepository } from "@/domain/column/column.repo";
-import { cookies } from "next/headers";
-import { verifyJwt } from "@/lib/jwt";
 import { AuthUser } from "@/lib/auth";
 import { UserRepository } from "@/domain/user/user.repo";
 import { BoardRepository } from "@/domain/board/board.repo";
 import { CardType } from "@/domain/card/card.types";
+import { createSafeAction } from "@/lib/safe-action";
+import { CommentService } from "@/domain/comment/comment.service";
 
 export async function moveCardAction(
   boardId: string,
@@ -90,29 +89,15 @@ export async function moveColumnAction(
   revalidatePath(`/boards/${boardId}`);
 }
 
-export async function inviteUserAction(boardId: string, email: string) {
-  try {
-    // 1. Authenticate and verify role
-    const cookieStore = await cookies();
-    const token = cookieStore.get("kanban_token")?.value;
-
-    if (!token) throw new Error("Unauthorized");
-    const session = verifyJwt(token) as unknown as AuthUser;
-
-    if (session.role !== "ADMIN") {
-      throw new Error("Forbidden: Only Admins can invite users.");
-    }
-
-    // 2. Look up the target user
+export const inviteUserAction = createSafeAction(
+  async (
+    { boardId, email }: { boardId: string; email: string },
+    { user }: { user: AuthUser },
+  ) => {
+    // No need to check tokens or roles, the wrapper already did it!
     const targetUser = await UserRepository.findByEmail(email.trim());
-    if (!targetUser) {
-      return {
-        success: false,
-        error: "No user found with that email address.",
-      };
-    }
+    if (!targetUser) throw new Error("User not found");
 
-    // 3. Assign them to the board
     try {
       await BoardRepository.assignUser(boardId, targetUser.id);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -123,18 +108,12 @@ export async function inviteUserAction(boardId: string, email: string) {
       }
       throw dbError;
     }
-
-    // 4. Purge Cache
     await redis.del(`board:${boardId}:data`);
     revalidatePath(`/boards/${boardId}`);
-
-    return { success: true };
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unexpected error";
-    console.error("[SERVER] Failed to invite user:", message);
-    return { success: false, error: message || "Failed to invite user" };
-  }
-}
+    return { success: true, data: null };
+  },
+  "ADMIN",
+);
 
 // --- UPDATE CARD DETAILS ---
 export async function updateCardDetailsAction(
@@ -161,3 +140,35 @@ export async function updateCardDetailsAction(
     return { success: false, error: "Failed to update card details" };
   }
 }
+
+export const getCardCommentsAction = createSafeAction(
+  async (cardId: string) => {
+    const comments = await CommentService.listComments(cardId);
+    return { success: true, data: comments };
+  },
+);
+
+// --- ADD COMMENT ---
+export const addCommentAction = createSafeAction(
+  async (
+    {
+      boardId,
+      cardId,
+      text,
+    }: { boardId: string; cardId: string; text: string },
+    { user },
+  ) => {
+    await CommentService.addComment({
+      boardId,
+      cardId,
+      text,
+      userId: user.userId,
+      userName: user.name, // Pass the name so the notification service can use it
+    });
+
+    await redis.del(`board:${boardId}:data`);
+    revalidatePath(`/boards/${boardId}`);
+
+    return { success: true, data: null };
+  },
+);

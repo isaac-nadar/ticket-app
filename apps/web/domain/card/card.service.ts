@@ -43,7 +43,7 @@ export const CardService = {
       cardId,
       targetColumnId,
       targetPosition,
-      userId,
+      // userId,
     );
 
     await DomainEvents.dispatch({

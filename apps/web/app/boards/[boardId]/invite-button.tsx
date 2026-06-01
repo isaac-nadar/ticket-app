@@ -33,7 +33,7 @@ export function InviteButton({ boardId }: { boardId: string }) {
     }
 
     startTransition(async () => {
-      const res = await inviteUserAction(boardId, email);
+      const res = await inviteUserAction({ boardId, email });
 
       if (res.success) {
         setSuccess("User successfully added to the board!");

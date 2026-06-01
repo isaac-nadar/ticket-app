@@ -1,10 +1,10 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import prisma from "@/lib/db";
 import Link from "next/link";
 import { BoardUser } from "@/domain/board/board.type";
 import { verifyJwt } from "@/lib/jwt";
 import { CreateBoardButton } from "./create-board-button";
+import { BoardUserService } from "@/domain/board/board.service";
 
 // This is a Server Component!
 export default async function BoardsDashboard() {
@@ -25,10 +25,7 @@ export default async function BoardsDashboard() {
   }
 
   // 2. Fetch boards this user belongs to
-  const userBoards = await prisma.boardUser.findMany({
-    where: { userId },
-    include: { board: true },
-  });
+  const userBoards = await BoardUserService.listBoardsForUser(userId);
 
   return (
     <div className="min-h-screen p-8">

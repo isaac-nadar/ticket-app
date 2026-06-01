@@ -7,7 +7,6 @@ export const NotificationRepository = {
     title: string,
     body?: string,
   ) => {
-    console.log({ userId, type });
     return prisma.notification.create({
       data: {
         userId,
@@ -33,9 +32,17 @@ export const NotificationRepository = {
     });
   },
 
-  markAsRead: async (notificationId: string) => {
+  getRecent: async (userId: string, take: number = 50) => {
+    return prisma.notification.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take, // Limit to prevent massive payloads
+    });
+  },
+
+  markAsRead: async (notificationId: string, userId: string) => {
     return prisma.notification.update({
-      where: { id: notificationId },
+      where: { id: notificationId, userId },
       data: { read: true },
     });
   },

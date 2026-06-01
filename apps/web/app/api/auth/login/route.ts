@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/db";
 import bcrypt from "bcrypt";
 import { signJwt } from "@/lib/jwt";
 import { withCors } from "@/lib/cors";
 
 import { withErrorHandler } from "@/lib/api-wrapper";
 import { UnauthorizedError } from "@/lib/errors";
+import { UserService } from "@/domain/user/user.service";
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const { email, password } = await req.json();
 
   // 1. Find User
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await UserService.checkUser(email);
   if (!user) throw new UnauthorizedError("Invalid email or password");
 
   // 2. Verify Password

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import prisma from "@/lib/db";
 import "@/app/api/_bootstrap";
+import { PushService } from "@/domain/push/push.service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,13 +17,19 @@ export async function POST(req: NextRequest) {
     }
 
     // Save it to Postgres linked to the User
-    await prisma.pushSubscription.create({
-      data: {
-        userId: user.userId,
-        endpoint: subscription.endpoint,
-        keys: subscription.keys,
-      },
-    });
+    // await prisma.pushSubscription.create({
+    //   data: {
+    //     userId: user.userId,
+    //     endpoint: subscription.endpoint,
+    //     keys: subscription.keys,
+    //   },
+    // });
+
+    await PushService.createPushSubscription(
+      user.userId,
+      subscription.endpoint,
+      subscription.keys,
+    );
 
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {

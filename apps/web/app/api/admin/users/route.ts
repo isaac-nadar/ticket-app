@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcrypt";
-import prisma from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
+import { UserService } from "@/domain/user/user.service";
 
 export async function POST(req: NextRequest) {
   requireAdmin(req);
@@ -13,17 +13,15 @@ export async function POST(req: NextRequest) {
   if (!email || !password) {
     return NextResponse.json(
       { error: "email and password required" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   try {
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hash,
-        role: role ?? "USER",
-      },
+    const user = await UserService.createUser({
+      email,
+      passwordHash: hash,
+      role: role ?? "USER",
     });
 
     return NextResponse.json({
@@ -31,10 +29,8 @@ export async function POST(req: NextRequest) {
       email: user.email,
       role: user.role,
     });
-
   } catch (err: unknown) {
-    const message =
-      err instanceof Error ? err.message : "Unexpected error";
+    const message = err instanceof Error ? err.message : "Unexpected error";
 
     return NextResponse.json({ error: message }, { status: 400 });
   }
@@ -43,16 +39,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   requireAdmin(req);
 
-  const users = await prisma.user.findMany({
-    select: {
-      id: true,
-      email: true,
-      role: true,
-      active: true,
-      createdAt: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const users = await UserService.getAllUsers();
 
   return NextResponse.json(users);
 }

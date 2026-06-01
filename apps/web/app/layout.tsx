@@ -5,6 +5,7 @@ import { Providers } from "./providers";
 import { StyleProvider } from "./style-provider";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { ProfileSettings } from "@/components/profile-settings";
+import { NotificationBell } from "@/components/notification-bell";
 
 // 1. Load the Corporate Font (Variable weight)
 const inter = Inter({
@@ -45,6 +46,7 @@ export default function RootLayout({
                   and pass it down as `initialName`. For now, it will start empty
                   and fill in when they type!
                 */}
+                <NotificationBell />
                 <ProfileSettings />
                 <ThemeSwitcher />
               </div>

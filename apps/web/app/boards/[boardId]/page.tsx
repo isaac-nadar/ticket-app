@@ -1,4 +1,7 @@
-import { BoardQueryService } from "@/domain/board/board.service";
+import {
+  BoardQueryService,
+  BoardUserService,
+} from "@/domain/board/board.service";
 import { notFound, redirect } from "next/navigation";
 import { BoardClient } from "./board-client";
 import { cookies } from "next/headers";
@@ -30,9 +33,10 @@ export default async function BoardPage({
 
   // 2. THE RESOURCE BOUNCER (IDOR Protection)
   // Check if this specific user has a BoardUser link to this specific board
-  const hasAccess = await prisma.boardUser.findFirst({
-    where: { userId, boardId },
-  });
+  const hasAccess = await BoardUserService.UserHasAccessToBoard(
+    userId,
+    boardId,
+  );
 
   if (!hasAccess) {
     // If they are logged in but don't belong to this board, kick them to the dashboard

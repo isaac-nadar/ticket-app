@@ -46,3 +46,13 @@ export const BoardQueryService = {
     return board;
   },
 };
+
+export const BoardUserService = {
+  listBoardsForUser: async (userId: string) => {
+    return BoardRepository.findBoardsForUser(userId);
+  },
+
+  UserHasAccessToBoard: async (userId: string, boardId: string) => {
+    return BoardRepository.findUserOfBoard(userId, boardId);
+  },
+};

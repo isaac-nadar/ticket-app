@@ -42,17 +42,15 @@ export const BoardRepository = {
    * Return all boards a user has access to.
    */
   findBoardsForUser: async (userId: string) => {
-    return prisma.board.findMany({
-      where: {
-        users: {
-          some: {
-            userId,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
+    return await prisma.boardUser.findMany({
+      where: { userId },
+      include: { board: true },
+    });
+  },
+
+  findUserOfBoard: async (userId: string, boardId: string) => {
+    return await prisma.boardUser.findFirst({
+      where: { userId, boardId },
     });
   },
 };

@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcrypt";
-import prisma from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { UserService } from "@/domain/user/user.service";
 
 export async function POST(req: NextRequest) {
   const user = requireUser(req);
   const { currentPassword, newPassword } = await req.json();
 
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.userId },
-  });
+  const dbUser = await UserService.getUserById(user.userId);
 
   if (!dbUser) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -23,10 +21,7 @@ export async function POST(req: NextRequest) {
 
   const hash = await bcrypt.hash(newPassword, 10);
 
-  await prisma.user.update({
-    where: { id: user.userId },
-    data: { password: hash },
-  });
+  await UserService.updatePassword(user.userId, hash);
 
   return NextResponse.json({ ok: true });
 }

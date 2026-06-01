@@ -2,6 +2,13 @@ import { User } from "../user/user.types";
 
 export type CardType = "BUG" | "FEATURE";
 
+export type Comment = {
+  id: string;
+  text: string;
+  user: User;
+  createdAt: string;
+};
+
 export type Card = {
   id: string;
   title: string;
@@ -11,4 +18,5 @@ export type Card = {
   assigneeId?: string;
   version: number;
   assignee: User;
+  comments: Comment[];
 };
