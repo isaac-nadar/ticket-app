@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { pusherClient } from "@/lib/pusher-client";
 import {
   DndContext,
   PointerSensor,
@@ -55,6 +57,26 @@ export function BoardClient({
   const [activeColumn, setActiveColumn] = useState<Column | undefined>(
     undefined,
   );
+
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!pusherClient) return;
+
+    const channelName = `board-${board.id}`;
+    const channel = pusherClient.subscribe(channelName);
+    channel.bind("board-updated", (data: { message: string }) => {
+      console.log("⚡ [Real-Time] Board Update Received:", data.message);
+      router.refresh();
+    });
+
+    return () => {
+      // 👇 Ensure we only unsubscribe if the client actually exists
+      if (pusherClient) {
+        pusherClient.unsubscribe(channelName);
+      }
+    };
+  }, [board, router]);
 
   useEffect(() => {
     setBoard(initialBoard);
@@ -220,6 +242,7 @@ export function BoardClient({
           active.id as string,
           targetColumnId,
           targetPosition,
+          active.data.current?.assigneeId,
         );
       }
     });

@@ -30,10 +30,11 @@ export const CardService = {
   },
 
   reorderCard: async (
+    boardId: string,
     cardId: string,
     targetColumnId: string,
     targetPosition: number,
-    userId: string,
+    userId?: string,
   ) => {
     if (targetPosition < 0) {
       throw new Error("Invalid target position");
@@ -50,6 +51,7 @@ export const CardService = {
       id: randomUUID(),
       type: "CARD_MOVED",
       payload: {
+        boardId,
         cardId,
         targetColumnId,
         targetPosition,
@@ -71,7 +73,7 @@ export const CardService = {
       payload: {
         cardId,
         changes: data,
-        userId: data.assigneeId, // Passing this so notifications know who to alert
+        userId: data.assigneeId || "", // Passing this so notifications know who to alert
       },
     });
 

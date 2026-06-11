@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -45,9 +46,10 @@ model Card {
   deletedAt   DateTime?
   position    Int
 
-  column   Column    @relation(fields: [columnId], references: [id])
-  assignee User?     @relation(fields: [assigneeId], references: [id])
-  comments Comment[]
+  column      Column       @relation(fields: [columnId], references: [id])
+  assignee    User?        @relation(fields: [assigneeId], references: [id])
+  comments    Comment[]
+  attachments Attachment[]
 }
 
 model AuditLog {
@@ -91,6 +93,7 @@ model User {
   notifications Notification[]
   assignedCards Card[]
   comments      Comment[]
+  attachments   Attachment[]
 }
 
 enum Role {
@@ -113,7 +116,9 @@ model Notification {
 
   user User @relation(fields: [userId], references: [id])
 
-  @@index([userId, read])
+  // @@index([userId, read, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId], where: { read: false }, map: "unread_notifications_idx")
 }
 
 model Comment {
@@ -128,4 +133,22 @@ model Comment {
 
   cardId String
   card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+}
+
+// Add this brand new model to the bottom of the file:
+model Attachment {
+  id     String @id @default(uuid())
+  cardId String
+  card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fileName  String
+  fileUrl   String
+  fileType  String
+  sizeBytes Int    @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([cardId])
 }

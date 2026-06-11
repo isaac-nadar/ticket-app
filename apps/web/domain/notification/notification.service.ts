@@ -14,7 +14,7 @@ export const NotificationService = {
     }
 
     // mark as read in DB (source of truth)
-    await NotificationRepository.markAsRead(notificationId);
+    await NotificationRepository.markAsRead(notificationId, userId);
 
     // sync Redis safely
     const key = notificationKeys.unreadCount(userId);
@@ -47,18 +47,20 @@ export const NotificationService = {
   },
 
   getFeed: async (userId: string, limit: number = 10, cursor?: string) => {
-    // 1. Fetch from the repository
+    // 👇 THE FIX: Ask the database for ONE extra record!
+    const take = limit + 1;
+
     const notifications = await NotificationRepository.findForUserPaginated(
       userId,
-      limit,
+      take, // Pass the 'limit + 1' to the repo
       cursor,
     );
 
     let nextCursor: string | undefined = undefined;
 
-    // 2. Did we get more than the limit? If so, we have a next page!
+    // Now, if we asked for 10, and got 11 back, this logic works perfectly!
     if (notifications.length > limit) {
-      // Pop the extra record off the end of the array
+      // Pop the 11th record off the end of the array
       const nextItem = notifications.pop();
       // Save its ID as the cursor for the next API call
       nextCursor = nextItem?.id;
@@ -66,7 +68,7 @@ export const NotificationService = {
 
     return {
       data: notifications,
-      nextCursor, // If undefined, the frontend knows it reached the end
+      nextCursor,
     };
   },
 };

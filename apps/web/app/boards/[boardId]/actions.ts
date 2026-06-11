@@ -1,36 +1,41 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { CardRepository } from "@/domain/card/card.repo";
 import { redis } from "@/lib/redis";
-import { ColumnRepository } from "@/domain/column/column.repo";
 import { AuthUser } from "@/lib/auth";
-import { UserRepository } from "@/domain/user/user.repo";
-import { BoardRepository } from "@/domain/board/board.repo";
+import { UserService } from "@/domain/user/user.service";
+import { BoardUserService } from "@/domain/board/board.service";
 import { CardType } from "@/domain/card/card.types";
 import { createSafeAction } from "@/lib/safe-action";
 import { CommentService } from "@/domain/comment/comment.service";
+import { CardService } from "@/domain/card/card.service";
+import { ColumnService } from "@/domain/column/column.service";
 
 export async function moveCardAction(
   boardId: string,
   cardId: string,
   targetColumnId: string,
   targetPosition: number,
+  userId?: string,
 ) {
   try {
     console.log(
       `[SERVER] Moving Card ${cardId} to Column ${targetColumnId} at pos ${targetPosition}`,
     );
 
-    // 2. Do the heavy lifting in Postgres
-    await CardRepository.reorder(cardId, targetColumnId, targetPosition);
+    // TODO: use safe action to ensure it doesn't trigger notification to the user moving the card
+    await CardService.reorderCard(
+      boardId,
+      cardId,
+      targetColumnId,
+      targetPosition,
+      userId,
+    );
 
-    // 3. THE FIX: Purge the stale Redis Cache!
     const CACHE_KEY = `board:${boardId}:data`;
     await redis.del(CACHE_KEY);
     console.log(`🧹 [Cache Cleared] Purged Redis key: ${CACHE_KEY}`);
 
-    // 4. Tell Next.js to refresh the page route
     revalidatePath(`/boards/${boardId}`);
 
     return { success: true };
@@ -43,10 +48,8 @@ export async function moveCardAction(
 // --- ADD NEW COLUMN ---
 export async function createColumnAction(boardId: string, name: string) {
   try {
-    // 👇 Delegated entirely to the Domain layer!
-    await ColumnRepository.create(boardId, name);
+    await ColumnService.createColumn(boardId, name);
 
-    // Purge Cache & Refresh UI
     await redis.del(`board:${boardId}:data`);
     revalidatePath(`/boards/${boardId}`);
 
@@ -64,10 +67,8 @@ export async function createCardAction(
   title: string,
 ) {
   try {
-    // Already perfectly delegated to the Domain layer
-    await CardRepository.create(title, "FEATURE", columnId);
+    await CardService.createCard(title, "FEATURE", columnId);
 
-    // Purge Cache & Refresh UI
     await redis.del(`board:${boardId}:data`);
     revalidatePath(`/boards/${boardId}`);
 
@@ -83,8 +84,7 @@ export async function moveColumnAction(
   columnId: string,
   newPosition: number,
 ) {
-  // Add logic to your ColumnRepository to update the position integer!
-  await ColumnRepository.updatePosition(columnId, newPosition);
+  await ColumnService.updateColumnPosition(columnId, newPosition);
   await redis.del(`board:${boardId}:data`);
   revalidatePath(`/boards/${boardId}`);
 }
@@ -94,12 +94,11 @@ export const inviteUserAction = createSafeAction(
     { boardId, email }: { boardId: string; email: string },
     { user }: { user: AuthUser },
   ) => {
-    // No need to check tokens or roles, the wrapper already did it!
-    const targetUser = await UserRepository.findByEmail(email.trim());
+    const targetUser = await UserService.checkUser(email.trim());
     if (!targetUser) throw new Error("User not found");
 
     try {
-      await BoardRepository.assignUser(boardId, targetUser.id);
+      await BoardUserService.assignUserToBoard(boardId, targetUser.id);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (dbError: any) {
       // Prisma throws P2002 if a unique constraint fails (meaning they are already on the board)
@@ -128,7 +127,7 @@ export async function updateCardDetailsAction(
 ) {
   try {
     // 1. Update the database
-    await CardRepository.update(cardId, data);
+    await CardService.updateCardDetails(cardId, data);
 
     // 2. Purge Cache & Refresh UI
     await redis.del(`board:${boardId}:data`);
@@ -155,7 +154,13 @@ export const addCommentAction = createSafeAction(
       boardId,
       cardId,
       text,
-    }: { boardId: string; cardId: string; text: string },
+      assigneeId,
+    }: {
+      boardId: string;
+      cardId: string;
+      text: string;
+      assigneeId: string | null;
+    },
     { user },
   ) => {
     await CommentService.addComment({
@@ -163,7 +168,8 @@ export const addCommentAction = createSafeAction(
       cardId,
       text,
       userId: user.userId,
-      userName: user.name, // Pass the name so the notification service can use it
+      userName: user.name,
+      assigneeId, // Pass the name so the notification service can use it
     });
 
     await redis.del(`board:${boardId}:data`);

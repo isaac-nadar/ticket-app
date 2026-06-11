@@ -55,4 +55,8 @@ export const BoardUserService = {
   UserHasAccessToBoard: async (userId: string, boardId: string) => {
     return BoardRepository.findUserOfBoard(userId, boardId);
   },
+
+  assignUserToBoard: async (boardId: string, userId: string) => {
+    return BoardRepository.assignUser(boardId, userId);
+  },
 };

@@ -7,7 +7,7 @@ let csp = `
   default-src 'self';
   style-src 'self' 'unsafe-inline';
   img-src 'self' data:;
-  connect-src 'self';
+  connect-src 'self'  wss://*.pusher.com https://*.pusher.com;
 `;
 
 // 2. Conditionally append the script-src based on the environment

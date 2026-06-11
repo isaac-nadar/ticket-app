@@ -1,6 +1,6 @@
-import prisma from "@/lib/db";
 import { CommentRepository } from "./comment.repo";
-import { NotificationService } from "../notification/notification.service"; // Adjust path if needed
+import { DomainEvents } from "@/domain/events/domain-events";
+import { randomUUID } from "crypto";
 
 export const CommentService = {
   listComments: async (cardId: string) => {
@@ -13,6 +13,7 @@ export const CommentService = {
     text: string;
     userId: string;
     userName?: string;
+    assigneeId: string | null;
   }) => {
     // 1. Save the comment via Repository
     const comment = await CommentRepository.create({
@@ -20,23 +21,17 @@ export const CommentService = {
       cardId: params.cardId,
       userId: params.userId,
     });
-
-    // 2. Business Logic: Do we need to notify someone?
-    // We fetch the card to see who is assigned to it
-    const card = await prisma.card.findUnique({
-      where: { id: params.cardId },
-      select: { title: true, assigneeId: true },
-    });
-
-    // If the card has an assignee, AND the assignee is NOT the person who just commented...
-    // if (card?.assigneeId && card.assigneeId !== params.userId) {
-    //   await NotificationService.create(
-    //     card.assigneeId,
-    //     "COMMENT_ADDED",
-    //     `${params.userName || "Someone"} commented on your card: "${card.title}"`,
-    //     `/boards/${params.boardId}?card=${params.cardId}`,
-    //   );
-    // }
+    if (params.assigneeId !== params.userId) {
+      await DomainEvents.dispatch({
+        id: randomUUID(),
+        type: "COMMENTS_ADDED",
+        payload: {
+          cardId: params.cardId,
+          changes: params.text,
+          userId: params.assigneeId,
+        },
+      });
+    }
 
     return comment;
   },

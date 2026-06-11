@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/jwt";
 import { AuthUser } from "@/lib/auth";
-import { UserRepository } from "@/domain/user/user.repo";
+import { UserService } from "@/domain/user/user.service";
 
 export async function updateProfileAction(name: string) {
   try {
@@ -16,7 +16,7 @@ export async function updateProfileAction(name: string) {
     const session = verifyJwt(token) as unknown as AuthUser;
 
     // 2. Update the database via the Domain Layer
-    await UserRepository.updateProfile(session.userId, name);
+    await UserService.updateName(session.userId, name);
 
     // 3. Purge the global Next.js layout cache so the new name appears everywhere instantly
     revalidatePath("/", "layout");

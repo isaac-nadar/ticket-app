@@ -12,6 +12,20 @@ export async function cleanupDoneCards() {
     return;
   }
 
+  //s3 cleaup
+  // const s3KeysToDelete = staleCards.flatMap((card: Card) =>
+  //   card.attachments.map((att) => att.fileName),
+  // );
+
+  // if (s3KeysToDelete.length > 0) {
+  //   await s3Client.send(
+  //     new DeleteObjectsCommand({
+  //       Bucket: process.env.S3_BUCKET_NAME,
+  //       Delete: { Objects: s3KeysToDelete.map((Key) => ({ Key })) },
+  //     }),
+  //   );
+  // }
+
   const ids = staleCards.map((c: Card) => c.id);
 
   // 1. Bulk delete is MUCH faster than deleting one by one in a loop

@@ -9,6 +9,19 @@ export type Comment = {
   createdAt: string;
 };
 
+export type Attachment = {
+  id: string;
+  cardId: string;
+  card: Card;
+  userId: string;
+  user: User;
+  fileName: string;
+  fileUrl: string;
+  fileType: string; // e.g., "image/png", "application/pdf"
+  sizeBytes: number;
+  createdAt: string;
+};
+
 export type Card = {
   id: string;
   title: string;
@@ -19,4 +32,5 @@ export type Card = {
   version: number;
   assignee: User;
   comments: Comment[];
+  attachments: Attachment[];
 };

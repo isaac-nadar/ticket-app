@@ -21,7 +21,7 @@ import { Notification } from "@/domain/notification/notification.type";
 
 export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<Notification[] | []>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -43,7 +43,7 @@ export function NotificationBell() {
       getNotificationsAction()
         .then((res) => {
           if (res.success && "data" in res && res.data) {
-            setNotifications(res.data as Notification[]);
+            setNotifications(res.data.data as Notification[]);
           }
         })
         .finally(() => setIsLoading(false));

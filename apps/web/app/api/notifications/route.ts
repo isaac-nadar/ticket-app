@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { NotificationRepository } from "@/domain/notification/notification.repo";
 import { NotificationService } from "@/domain/notification/notification.service";
 import "@/app/api/_bootstrap";
 import { requireUser } from "@/lib/auth";

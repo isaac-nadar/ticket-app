@@ -1,3 +1,5 @@
+import "@/domain/bootstrap";
+
 import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/jwt";
 import { AuthUser } from "@/lib/auth";

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/jwt";
 import { AuthUser } from "@/lib/auth";
-import { BoardRepository } from "@/domain/board/board.repo";
+import { BoardService, BoardUserService } from "@/domain/board/board.service";
 
 export async function createBoardAction(name: string) {
   try {
@@ -25,10 +25,10 @@ export async function createBoardAction(name: string) {
     }
 
     // 4. Create the board
-    const newBoard = await BoardRepository.createWithDefaultColumns(name);
+    const newBoard = await BoardService.createBoard(name);
 
     // 5. Automatically assign the Admin to their new board
-    await BoardRepository.assignUser(newBoard.id, user.userId);
+    await BoardUserService.assignUserToBoard(newBoard.id, user.userId);
 
     revalidatePath("/boards");
     return { success: true, boardId: newBoard.id };

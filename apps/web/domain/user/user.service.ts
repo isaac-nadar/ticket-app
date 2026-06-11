@@ -32,4 +32,8 @@ export const UserService = {
   updatePassword: async (userId: string, passwordHash: string) => {
     return UserRepository.updatePassword(userId, passwordHash);
   },
+
+  updateName: async (userId: string, name: string) => {
+    return UserRepository.updateProfile(userId, name);
+  },
 };

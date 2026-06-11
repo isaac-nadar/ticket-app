@@ -117,6 +117,7 @@ export function CardDetailSheet({ board }: { board: Board }) {
         boardId: board.id,
         cardId: activeCardId,
         text: newComment,
+        assigneeId: assigneeId === "unassigned" ? null : assigneeId, // Pass this so we can notify the assignee of new comment
       });
       setNewComment(""); // Clear input on success
     });

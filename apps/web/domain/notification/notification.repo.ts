@@ -68,18 +68,35 @@ export const NotificationRepository = {
     });
   },
 
+  // findForUserPaginated: async (
+  //   userId: string,
+  //   limit: number,
+  //   cursor?: string,
+  // ) => {
+  //   const notifications = await prisma.notification.findMany({
+  //     where: { userId },
+  //     take: limit + 1, // Fetch one extra record to see if a next page exists
+  //     cursor: cursor ? { id: cursor } : undefined,
+  //     orderBy: { createdAt: "desc" },
+  //   });
+
+  //   return notifications;
+  // },
+
   findForUserPaginated: async (
     userId: string,
-    limit: number,
+    take: number,
     cursor?: string,
   ) => {
-    const notifications = await prisma.notification.findMany({
+    return prisma.notification.findMany({
       where: { userId },
-      take: limit + 1, // Fetch one extra record to see if a next page exists
-      cursor: cursor ? { id: cursor } : undefined,
+      take, // The service is already passing limit + 1
+      ...(cursor && {
+        cursor: { id: cursor },
+        skip: 1, // 👇 CRITICAL: Skip the cursor itself so it doesn't duplicate
+      }),
+      // 👇 CRITICAL: Ensures new notifications are always at the very top!
       orderBy: { createdAt: "desc" },
     });
-
-    return notifications;
   },
 };

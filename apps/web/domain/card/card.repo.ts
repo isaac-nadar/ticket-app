@@ -141,6 +141,7 @@ export const CardRepository = {
         column: { name: { equals: "Done", mode: "insensitive" } },
         updatedAt: { lt: cutoffDate }, // 'lt' means Less Than (older than) the cutoff
       },
+      include: { attachments: true },
     });
   },
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
-import { BoardRepository } from "@/domain/board/board.repo";
+import { BoardUserService } from "@/domain/board/board.service";
 
 export async function POST(
   req: NextRequest,
@@ -15,7 +15,7 @@ export async function POST(
     return NextResponse.json({ error: "userId is required" }, { status: 400 });
   }
 
-  await BoardRepository.assignUser(boardId, userId);
+  await BoardUserService.assignUserToBoard(boardId, userId);
 
   return NextResponse.json({ ok: true });
 }

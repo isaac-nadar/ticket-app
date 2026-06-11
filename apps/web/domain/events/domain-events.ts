@@ -1,21 +1,41 @@
-export type DomainEvent = {
-  id: string;
-  type: string;
-  payload: unknown;
-};
+// export type DomainEvent = {
+//   id: string;
+//   type: string;
+//   payload: unknown;
+// };
 
-type EventHandler = (event: DomainEvent) => Promise<void>;
+// type EventHandler = (event: DomainEvent) => Promise<void>;
 
-const handlers: EventHandler[] = [];
+import { DomainEventMap, DomainEvent } from "./events.types";
+
+// A handler now only receives the specific payload it cares about!
+type EventHandler<T extends keyof DomainEventMap> = (
+  payload: DomainEventMap[T],
+  event: DomainEvent<T>,
+) => Promise<void>;
+
+type AnyEventHandler = (payload: unknown, event: DomainEvent) => Promise<void>;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const subscribers: Record<string, EventHandler<any>[]> = {};
+
+// const handlers: EventHandler[] = [];
 
 export const DomainEvents = {
-  register: (handler: EventHandler) => {
-    handlers.push(handler);
+  subscribe: <T extends keyof DomainEventMap>(
+    eventType: T,
+    handler: EventHandler<T>,
+  ) => {
+    if (!subscribers[eventType]) {
+      subscribers[eventType] = [];
+    }
+    subscribers[eventType].push(handler as unknown as AnyEventHandler);
   },
 
   dispatch: async (event: DomainEvent) => {
+    const handlers = subscribers[event.type] || [];
     for (const handler of handlers) {
-      await handler(event);
+      await handler(event.payload, event);
     }
   },
 };
