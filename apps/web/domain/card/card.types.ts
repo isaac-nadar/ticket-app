@@ -1,3 +1,4 @@
+import { Column } from "../column/column.types";
 import { User } from "../user/user.types";
 
 export type CardType = "BUG" | "FEATURE";
@@ -33,4 +34,9 @@ export type Card = {
   assignee: User;
   comments: Comment[];
   attachments: Attachment[];
+  column?: Column;
+  boardId?: string;
+  board?: {
+    title?: string;
+  };
 };

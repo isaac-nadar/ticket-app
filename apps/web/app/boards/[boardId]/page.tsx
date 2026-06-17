@@ -7,6 +7,7 @@ import { BoardClient } from "./board-client";
 import { cookies } from "next/headers";
 import { verifyJwt } from "@/lib/jwt";
 import { InviteButton } from "./invite-button";
+import { GlobalSearch } from "@/components/global-search";
 
 export default async function BoardPage({
   params,
@@ -61,6 +62,7 @@ export default async function BoardPage({
           {boardData.name}
         </h1>
         {userRole === "ADMIN" && <InviteButton boardId={boardData.id} />}
+        <GlobalSearch />
       </header>
 
       <BoardClient initialBoard={boardData} userRole={userRole} />

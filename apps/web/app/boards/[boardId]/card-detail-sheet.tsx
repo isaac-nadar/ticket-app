@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useTransition, startTransition } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { updateCardDetailsAction } from "./actions";
+import { getCardDetailsAction, updateCardDetailsAction } from "./actions";
 import { Bug, Sparkles } from "lucide-react";
 
 import {
@@ -23,13 +24,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, Comment } from "@/domain/card/card.types";
+import { Attachment, Card, Comment } from "@/domain/card/card.types";
 import { Board, BoardUser } from "@/domain/board/board.type";
 import { UserAvatar } from "@/components/use-avatar";
 
-import { addCommentAction, getCardCommentsAction } from "./actions";
+import { addCommentAction } from "./actions";
 import { formatDistanceToNow } from "date-fns";
-import { Skeleton } from "@/components/ui/skeleton";
+import { FileUploadZone } from "@/components/file-upload-zone";
 
 export function CardDetailSheet({ board }: { board: Board }) {
   const router = useRouter();
@@ -44,21 +45,22 @@ export function CardDetailSheet({ board }: { board: Board }) {
   const [description, setDescription] = useState("");
   const [assigneeId, setAssigneeId] = useState<string>("unassigned");
   const [type, setType] = useState<"BUG" | "FEATURE">("FEATURE");
+  const [card, setCard] = useState<Card | null>(null);
   const [isPending, startRequest] = useTransition();
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [isCommenting, startCommentRequest] = useTransition();
-  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
   useEffect(() => {
     if (activeCardId && board) {
-      // 1. INSTANT LOAD: Find card from local board state (Title, Desc, Assignee)
+      let isMounted = true;
+
       for (const column of board.columns) {
         const foundCard = column.cards.find((c: Card) => c.id === activeCardId);
         if (foundCard) {
           startTransition(() => {
             setTitle(foundCard.title);
-            setDescription(foundCard.description || "");
             setAssigneeId(foundCard.assigneeId || "unassigned");
             setType(foundCard.type || "FEATURE");
           });
@@ -66,20 +68,26 @@ export function CardDetailSheet({ board }: { board: Board }) {
         }
       }
 
-      // 2. LAZY LOAD: Fetch comments from the server
-      let isMounted = true; // Cleanup flag to prevent race conditions
+      // 2. LAZY LOAD: Fetch the heavy data (Description, Attachments, Comments)
       startTransition(() => {
-        setIsLoadingComments(true);
-        setComments([]); // Clear old comments while fetching
+        setIsLoadingDetails(true);
+        setComments([]);
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      getCardCommentsAction(activeCardId).then((res: any) => {
-        if (isMounted && res.success && res.data) {
-          setComments(res.data);
-          setIsLoadingComments(false);
-        }
-      });
+      // We call our new unified action!
+      getCardDetailsAction(activeCardId).then(
+        (res: Awaited<ReturnType<typeof getCardDetailsAction>>) => {
+          if (isMounted && res.success && res.data) {
+            startTransition(() => {
+              // Populate the heavy fields!
+              setDescription(res.data.description || "");
+              setCard(res.data); // This contains res.data.attachments
+              setComments(res.data.comments || []);
+              setIsLoadingDetails(false);
+            });
+          }
+        },
+      );
 
       return () => {
         isMounted = false;
@@ -198,6 +206,58 @@ export function CardDetailSheet({ board }: { board: Board }) {
               </div>
             </div>
 
+            <FileUploadZone cardId={activeCardId} boardId={board.id} />
+
+            {/* 2. The Attachment Gallery */}
+            {card?.attachments && card.attachments.length > 0 && (
+              <div className="mt-6">
+                <h3 className="mb-2 text-sm font-semibold text-gray-700">
+                  Attachments
+                </h3>
+                <div className="flex flex-wrap gap-4">
+                  {card.attachments.map((file: Attachment) => (
+                    <a
+                      key={file.id}
+                      href={file.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group relative flex h-20 w-24 flex-col items-center justify-center overflow-hidden rounded-md border bg-gray-50 transition hover:border-blue-500 hover:shadow-sm"
+                    >
+                      {/* If it's an image, render the Next.js optimized picture */}
+                      {file.fileType.startsWith("image/") ? (
+                        <Image
+                          src={file.fileUrl}
+                          alt={file.fileName} // Fixed: Axe-Linter Error
+                          fill
+                          className="object-cover transition group-hover:opacity-80"
+                          sizes="96px"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center p-2 text-center">
+                          <svg
+                            className="mb-1 h-6 w-6 text-gray-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                            />
+                          </svg>
+                          <span className="w-full truncate px-1 text-[10px] text-gray-500">
+                            {file.fileName}
+                          </span>
+                        </div>
+                      )}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* DESCRIPTION INPUT */}
             <div className="flex flex-col gap-2 mt-4">
               <Label className="text-sm font-semibold">Description</Label>
@@ -216,7 +276,7 @@ export function CardDetailSheet({ board }: { board: Board }) {
               Activity
             </Label>
 
-            {isLoadingComments ? (
+            {isLoadingDetails ? (
               <div className="flex flex-col gap-4 mt-2">
                 {/* Tailwind Loading Skeletons */}
                 {[1, 2].map((i) => (

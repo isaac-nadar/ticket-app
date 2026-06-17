@@ -6,8 +6,8 @@ const isDev = process.env.NODE_ENV !== "production";
 let csp = `
   default-src 'self';
   style-src 'self' 'unsafe-inline';
-  img-src 'self' data:;
-  connect-src 'self'  wss://*.pusher.com https://*.pusher.com;
+  img-src 'self' blob: data: https://*.amazonaws.com;
+  connect-src 'self'  wss://*.pusher.com https://*.pusher.com https://*.amazonaws.com;
 `;
 
 // 2. Conditionally append the script-src based on the environment
@@ -38,6 +38,16 @@ const nextConfig: NextConfig = {
         ],
       },
     ];
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "*.amazonaws.com",
+        port: "",
+        pathname: "/**",
+      },
+    ],
   },
 };
 

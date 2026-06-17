@@ -166,4 +166,41 @@ export const CardRepository = {
       data: { deletedAt: new Date() }, // Set the timestamp
     });
   },
+
+  getByIdWithDetails: async (cardId: string) => {
+    return prisma.card.findUnique({
+      where: { id: cardId },
+      include: {
+        attachments: true,
+        comments: {
+          include: { user: true },
+          orderBy: { createdAt: "desc" },
+        },
+      },
+    });
+  },
+
+  findByQuery: async (query: string, allowedBoardIds: string[]) => {
+    return await prisma.card.findMany({
+      where: {
+        // 👇 Traverse UP to the column to check if its boardId is allowed
+        column: {
+          boardId: { in: allowedBoardIds },
+        },
+        OR: [
+          { title: { contains: query, mode: "insensitive" } },
+          { description: { contains: query, mode: "insensitive" } },
+        ],
+      },
+      take: 10,
+      include: {
+        // 👇 Fetch the Board title by passing through the column relation
+        column: {
+          include: {
+            board: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+  },
 };

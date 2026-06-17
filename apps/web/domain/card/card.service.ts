@@ -94,4 +94,15 @@ export const CardService = {
 
     return card;
   },
+
+  async getCardDetails(cardId: string) {
+    if (!cardId) throw new Error("cardId is required");
+
+    return CardRepository.getByIdWithDetails(cardId);
+  },
+
+  async searchCards(query: string, allowedBoardIds: string[]) {
+    if (!query || query.length < 2) return [];
+    return CardRepository.findByQuery(query, allowedBoardIds);
+  },
 };

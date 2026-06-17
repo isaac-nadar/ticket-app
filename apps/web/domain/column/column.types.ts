@@ -1,3 +1,4 @@
+import { Board } from "../board/board.type";
 import { Card } from "../card/card.types";
 
 export type Column = {
@@ -6,4 +7,5 @@ export type Column = {
   position: number;
   boardId: string;
   cards: Card[];
+  board?: Board;
 };

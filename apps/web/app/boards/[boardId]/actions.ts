@@ -178,3 +178,11 @@ export const addCommentAction = createSafeAction(
     return { success: true, data: null };
   },
 );
+
+export const getCardDetailsAction = createSafeAction(async (cardId: string) => {
+  const card = await CardService.getCardDetails(cardId);
+  if (!card) {
+    throw new Error("Card not found");
+  }
+  return { success: true, data: card };
+});
