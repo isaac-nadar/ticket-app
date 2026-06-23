@@ -17,17 +17,19 @@ export const UserRepository = {
 
   create: async (data: {
     email: string;
+    name: string;
     passwordHash: string;
     role: "USER" | "ADMIN";
   }) => {
     const payload = {
       email: data.email,
+      name: data.name,
       password: data.passwordHash,
       role: data.role,
     };
 
     return prisma.user.create({
-      payload,
+      data: payload,
       select: { id: true, email: true },
     });
   },
@@ -77,6 +79,15 @@ export const UserRepository = {
         createdAt: true,
       },
       orderBy: { createdAt: "desc" },
+    });
+  },
+
+  listAllUsersNotInBoard: async (boardId: string) => {
+    return prisma.user.findMany({
+      where: {
+        boardUsers: { none: { boardId: boardId } },
+      },
+      select: { id: true, name: true, email: true },
     });
   },
 };

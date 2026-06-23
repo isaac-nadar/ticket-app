@@ -61,7 +61,9 @@ export default async function BoardPage({
         <h1 className="text-xl font-bold text-card-foreground capitalize">
           {boardData.name}
         </h1>
-        {userRole === "ADMIN" && <InviteButton boardId={boardData.id} />}
+        {userRole === "ADMIN" && (
+          <InviteButton boardId={boardData.id} isAdmin={true} />
+        )}
         <GlobalSearch />
       </header>
 

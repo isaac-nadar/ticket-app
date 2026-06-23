@@ -186,3 +186,25 @@ export const getCardDetailsAction = createSafeAction(async (cardId: string) => {
   }
   return { success: true, data: card };
 });
+
+export const getAvailableUsersAction = createSafeAction(
+  async (boardId: string, { user }) => {
+    if (user.role !== "ADMIN") throw new Error("Forbidden");
+
+    // Find all users where they do NOT have a BoardUser record for this board
+    const availableUsers = await UserService.listAllUsersNotInBoard(boardId);
+
+    return { success: true, data: availableUsers };
+  },
+);
+
+export const assignUserToBoardAction = createSafeAction(
+  async (data: { boardId: string; userId: string }, { user }) => {
+    if (user.role !== "ADMIN") throw new Error("Forbidden");
+
+    await BoardUserService.assignUserToBoard(data.boardId, data.userId);
+
+    revalidatePath(`/boards/${data.boardId}`);
+    return { success: true, data: null };
+  },
+);

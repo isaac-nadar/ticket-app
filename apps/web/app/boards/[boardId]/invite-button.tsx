@@ -1,106 +1,110 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { UserPlus } from "lucide-react";
-import { inviteUserAction } from "./actions";
-
+import { useState, useEffect, useTransition } from "react";
+import { Plus, UserPlus } from "lucide-react";
+import { getAvailableUsersAction, assignUserToBoardAction } from "./actions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { User } from "@/domain/user/user.types";
 
-export function InviteButton({ boardId }: { boardId: string }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [email, setEmail] = useState("");
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+export function InviteButton({
+  boardId,
+  isAdmin,
+}: {
+  boardId: string;
+  isAdmin: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [isPending, startTransition] = useTransition();
 
-  const handleInvite = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setSuccess("");
-
-    if (!email.trim() || !email.includes("@")) {
-      setError("Please enter a valid email address.");
-      return;
+  useEffect(() => {
+    if (open) {
+      getAvailableUsersAction(boardId).then((res) => {
+        console.log("Available users:", res);
+        if (res?.success && res.data) setAvailableUsers(res.data);
+      });
     }
+  }, [open, boardId]);
+
+  const handleAssign = () => {
+    if (!selectedUserId) return;
 
     startTransition(async () => {
-      const res = await inviteUserAction({ boardId, email });
-
-      if (res.success) {
-        setSuccess("User successfully added to the board!");
-        setEmail(""); // Clear the input
-
-        // Auto-close after 2 seconds
-        setTimeout(() => setIsOpen(false), 2000);
-      } else {
-        setError(res.error || "Failed to invite user.");
-      }
+      await assignUserToBoardAction({ boardId, userId: selectedUserId });
+      setOpen(false);
+      setSelectedUserId("");
     });
   };
 
+  if (!isAdmin) return null;
+
   return (
-    <Dialog
-      open={isOpen}
-      onOpenChange={(open) => {
-        setIsOpen(open);
-        if (!open) {
-          setError("");
-          setSuccess("");
-        }
-      }}
-    >
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="shadow-sm border-ui bg-background">
-          <UserPlus className="size-4 mr-2" />
-          Share Board
+        <Button variant="outline" size="sm" className="h-8 gap-2 border-dashed">
+          <UserPlus className="h-4 w-4" />
+          <span className="hidden sm:inline">Add Member</span>
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-md bg-card text-card-foreground border-ui border-border shadow-ui rounded-ui">
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Invite to Board</DialogTitle>
+          <DialogTitle>Assign to Board</DialogTitle>
         </DialogHeader>
+        <DialogDescription>
+          Assign users to current board. Only users not already assigned to this
+          board will be shown.
+        </DialogDescription>
 
-        <form onSubmit={handleInvite} className="flex flex-col gap-5 mt-4">
-          {error && (
-            <div className="bg-destructive/10 text-destructive border border-destructive/20 p-3 rounded-md text-sm text-center">
-              {error}
-            </div>
-          )}
-
-          {success && (
-            <div className="bg-primary/10 text-primary border border-primary/20 p-3 rounded-md text-sm text-center font-medium">
-              {success}
-            </div>
-          )}
-
+        <div className="grid gap-4 py-4">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="email">User Email Address</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="colleague@company.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoFocus
-            />
-          </div>
+            <span className="text-sm font-medium">Select Employee</span>
 
-          <div className="flex justify-end mt-2">
-            <Button type="submit" disabled={isPending || !email.trim()}>
-              {isPending ? "Inviting..." : "Send Invite"}
-            </Button>
+            <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a team member..." />
+              </SelectTrigger>
+              <SelectContent>
+                {availableUsers.length === 0 ? (
+                  <div className="p-2 text-sm text-gray-500">
+                    No available employees found.
+                  </div>
+                ) : (
+                  availableUsers.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.name || u.email}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
           </div>
-        </form>
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            onClick={handleAssign}
+            disabled={isPending || !selectedUserId}
+          >
+            {isPending ? "Assigning..." : "Assign to Board"}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
