@@ -5,7 +5,7 @@ import { BoardService, BoardQueryService } from "@/domain/board/board.service";
 export async function POST(req: NextRequest) {
   try {
     const { name } = await req.json();
-    const board = await BoardService.createBoard(name);
+    const board = await BoardService.createBoard(name, "");
 
     return NextResponse.json(board, { status: 201 });
   } catch (err: unknown) {

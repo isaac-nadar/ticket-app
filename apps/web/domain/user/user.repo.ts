@@ -15,6 +15,40 @@ export const UserRepository = {
     });
   },
 
+  checkDuplicate: async (data: {
+    email: string;
+    name: string;
+    passwordHash: string;
+    role: "USER" | "ADMIN";
+  }) => {
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [{ email: data.email }, { name: data.name }],
+      },
+    });
+
+    if (existingUser) {
+      if (existingUser.email === data.email) {
+        return {
+          success: false,
+          error: "A user with this email already exists.",
+        };
+      }
+      if (existingUser.name === data.name) {
+        return {
+          success: false,
+          error:
+            "A user with this exact name already exists. Please use a unique name.",
+        };
+      }
+    } else {
+      return {
+        success: true,
+        message: "",
+      };
+    }
+  },
+
   create: async (data: {
     email: string;
     name: string;
@@ -30,7 +64,7 @@ export const UserRepository = {
 
     return prisma.user.create({
       data: payload,
-      select: { id: true, email: true },
+      select: { id: true, email: true, name: true },
     });
   },
 

@@ -67,7 +67,11 @@ export default async function BoardPage({
         <GlobalSearch />
       </header>
 
-      <BoardClient initialBoard={boardData} userRole={userRole} />
+      <BoardClient
+        initialBoard={boardData}
+        userRole={userRole}
+        currentUserId={userId}
+      />
     </main>
   );
 }

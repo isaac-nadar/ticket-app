@@ -7,9 +7,30 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  ADMIN
+  USER
+}
+
+enum CardType {
+  BUG
+  FEATURE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
 model Board {
-  id        String      @id @default(uuid())
-  name      String
+  id   String @id @default(uuid())
+  name String
+
+  prefix       String?
+  nextSequence Int     @default(1)
+
   users     BoardUser[]
   createdAt DateTime    @default(now())
   columns   Column[]
@@ -26,12 +47,14 @@ model BoardUser {
 }
 
 model Column {
-  id       String @id @default(uuid())
-  name     String
-  position Int
-  boardId  String
-  cards    Card[]
-  board    Board  @relation(fields: [boardId], references: [id])
+  id        String    @id @default(uuid())
+  name      String
+  position  Int
+  isBacklog Boolean   @default(false)
+  boardId   String
+  dueDate   DateTime?
+  cards     Card[]
+  board     Board     @relation(fields: [boardId], references: [id])
 }
 
 model Card {
@@ -39,17 +62,28 @@ model Card {
   title       String
   description String?
   type        CardType
-  columnId    String
-  assigneeId  String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
-  position    Int
+  sequenceNum Int       @default(0)
+  priority    Priority  @default(MEDIUM)
+  dueDate     DateTime?
 
-  column      Column       @relation(fields: [columnId], references: [id])
-  assignee    User?        @relation(fields: [assigneeId], references: [id])
-  comments    Comment[]
-  attachments Attachment[]
+  tags String[] @default([])
+
+  parentId String?
+  parent   Card?   @relation("CardToSubtasks", fields: [parentId], references: [id])
+  subtasks Card[]  @relation("CardToSubtasks")
+
+  columnId   String
+  assigneeId String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+  position   Int
+
+  column        Column         @relation(fields: [columnId], references: [id])
+  assignee      User?          @relation(fields: [assigneeId], references: [id])
+  comments      Comment[]
+  attachments   Attachment[]
+  notifications Notification[]
 }
 
 model AuditLog {
@@ -60,15 +94,6 @@ model AuditLog {
   payload   Json
   createdAt DateTime @default(now())
 }
-
-// model Notification {
-//   id        String   @id @default(uuid())
-//   userId    String
-//   type      String
-//   message   String
-//   read      Boolean  @default(false)
-//   createdAt DateTime @default(now())
-// }
 
 model PushSubscription {
   id        String   @id @default(uuid())
@@ -81,42 +106,36 @@ model PushSubscription {
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
+  name      String
   password  String
   role      Role     @default(USER)
   createdAt DateTime @default(now())
   active    Boolean  @default(true)
   updatedAt DateTime @updatedAt
-  name      String?
   avatar    String?
 
   boardUsers    BoardUser[]
-  notifications Notification[]
   assignedCards Card[]
   comments      Comment[]
   attachments   Attachment[]
-}
-
-enum Role {
-  ADMIN
-  USER
-}
-
-enum CardType {
-  BUG
-  FEATURE
+  notifications Notification[]
 }
 
 model Notification {
   id        String   @id @default(uuid())
   userId    String
-  title     String
-  body      String?
+  title     String // E.g., "New Mention"
+  body      String? // E.g., "Isaac mentioned you in PBN-12"
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id])
+  // 👇 ADDED FOR MENTIONS:
+  actorId String? // The ID of the user who @ mentioned them
+  cardId  String? // The ID of the card they were mentioned in
+  card    Card?   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
 
-  // @@index([userId, read, createdAt(sort: Desc)])
+  // Your existing optimized indexes!
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId], where: { read: false }, map: "unread_notifications_idx")
 }

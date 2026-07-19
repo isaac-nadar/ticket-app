@@ -103,9 +103,11 @@ export function ProfileSettings({
           setNewPass("");
           setConfirmPass("");
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "An unexpected error occurred";
+
         setMessage({
-          text: err.message || "An unexpected error occurred",
+          text: message,
           type: "error",
         });
       }

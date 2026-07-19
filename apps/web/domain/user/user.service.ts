@@ -11,12 +11,17 @@ export const UserService = {
     role: "USER" | "ADMIN";
   }) => {
     // 1. Repo handles the DB
-    const user = await UserRepository.create(data);
+    const isUnique = await UserRepository.checkDuplicate(data);
+    if (isUnique?.success) {
+      const user = await UserRepository.create(data);
 
-    // 2. Service handles the business side-effects
-    // await EmailService.sendWelcome(user.email);
+      // 2. Service handles the business side-effects
+      // await EmailService.sendWelcome(user.email);
 
-    return user;
+      return user;
+    } else {
+      return isUnique;
+    }
   },
 
   getAllUsers: async () => {

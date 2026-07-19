@@ -5,6 +5,8 @@ import { BoardUser } from "@/domain/board/board.type";
 import { verifyJwt } from "@/lib/jwt";
 import { CreateBoardButton } from "./create-board-button";
 import { BoardUserService } from "@/domain/board/board.service";
+import { Shield } from "lucide-react"; // A good icon for Admin settings
+import { Button } from "@/components/ui/button";
 
 // This is a Server Component!
 export default async function BoardsDashboard() {
@@ -34,6 +36,14 @@ export default async function BoardsDashboard() {
       </h1>
 
       {userRole === "ADMIN" && <CreateBoardButton />}
+      {userRole === "ADMIN" && (
+              <Link href="/admin">
+                <Button variant="outline" size="sm" className="gap-2 border-blue-500/30 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20">
+                  <Shield className="h-4 w-4" />
+                  Admin Panel
+                </Button>
+              </Link>
+            )}
 
       <div className="flex gap-4">
         {userBoards.map((bu: BoardUser) => (

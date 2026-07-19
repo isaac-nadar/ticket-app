@@ -2,11 +2,11 @@ import { BoardReadRepository, BoardRepository } from "./board.repo";
 import { redis } from "@/lib/redis";
 
 export const BoardService = {
-  createBoard: async (name: string) => {
+  createBoard: async (name: string, prefix: string) => {
     if (!name || !name.trim()) {
       throw new Error("Board name is required");
     }
-    return BoardRepository.createWithDefaultColumns(name.trim());
+    return BoardRepository.createWithDefaultColumns(name.trim(), prefix);
   },
 };
 
@@ -58,5 +58,9 @@ export const BoardUserService = {
 
   assignUserToBoard: async (boardId: string, userId: string) => {
     return BoardRepository.assignUser(boardId, userId);
+  },
+
+  checkUserAccessToBoard: async (userId: string, boardId: string) => {
+    return BoardRepository.checkUserAccessToBoard(userId, boardId);
   },
 };

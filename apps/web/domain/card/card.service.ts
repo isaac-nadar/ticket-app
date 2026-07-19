@@ -5,12 +5,17 @@ import { randomUUID } from "crypto";
 import { CardType } from "./card.types";
 
 export const CardService = {
-  createCard: async (title: string, type: CardType, columnId: string) => {
+  createCard: async (
+    title: string,
+    type: CardType,
+    columnId: string,
+    parentId?: string,
+  ) => {
     if (!title.trim()) {
       throw new Error("Title is required");
     }
 
-    return CardRepository.create(title, type, columnId);
+    return CardRepository.create(title, type, columnId, parentId);
   },
 
   listCards: async () => {
@@ -104,5 +109,44 @@ export const CardService = {
   async searchCards(query: string, allowedBoardIds: string[]) {
     if (!query || query.length < 2) return [];
     return CardRepository.findByQuery(query, allowedBoardIds);
+  },
+
+  async updateCardDescription(
+    cardId: string,
+    description: string,
+    actorId: string,
+    actorName: string,
+  ) {
+    if (!cardId) throw new Error("cardId is required");
+
+    const result = await CardRepository.updateDescription(
+      cardId,
+      description,
+      actorId,
+      actorName,
+    );
+
+    // A. Dispatch the board update (so everyone sees the new description)
+    await DomainEvents.dispatch({
+      id: randomUUID(),
+      type: "CARD_UPDATED",
+      payload: {
+        cardId,
+        description,
+        userId: actorId,
+        actorName,
+      },
+    });
+
+    // B. Dispatch direct pings to the mentioned users (so their navbar bell lights up!)
+    for (const notification of result.notificationsToDispatch) {
+      await DomainEvents.dispatch({
+        id: randomUUID(),
+        type: "NOTIFICATION_CREATED",
+        payload: notification,
+      });
+    }
+
+    return result.updatedCard;
   },
 };

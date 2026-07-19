@@ -3,16 +3,17 @@ import prisma from "@/lib/db";
 type Tx = typeof prisma;
 
 export const BoardRepository = {
-  createWithDefaultColumns: async (name: string) => {
+  createWithDefaultColumns: async (name: string, prefix: string) => {
     return prisma.$transaction(async (tx: Tx) => {
       const board = await tx.board.create({
-        data: { name },
+        data: { name, prefix },
       });
 
       const columns = [
-        { name: "Todo", position: 0 },
-        { name: "In Progress", position: 1 },
-        { name: "Done", position: 2 },
+        { name: "Backlog", position: 0, isBacklog: true },
+        { name: "Todo", position: 1 },
+        { name: "In Progress", position: 2 },
+        { name: "Done", position: 3 },
       ];
 
       await tx.column.createMany({
@@ -51,6 +52,14 @@ export const BoardRepository = {
   findUserOfBoard: async (userId: string, boardId: string) => {
     return await prisma.boardUser.findFirst({
       where: { userId, boardId },
+    });
+  },
+
+  checkUserAccessToBoard: async (userId: string, boardId: string) => {
+    return await prisma.boardUser.findUnique({
+      where: {
+        boardId_userId: { boardId, userId },
+      },
     });
   },
 };

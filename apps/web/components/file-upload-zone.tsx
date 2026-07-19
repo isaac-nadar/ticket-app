@@ -8,7 +8,7 @@ import {
 import { useRouter } from "next/navigation";
 
 interface FileUploadZoneProps {
-  cardId: string | null;
+  cardId: string;
   boardId: string;
 }
 

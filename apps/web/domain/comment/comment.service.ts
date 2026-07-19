@@ -22,15 +22,15 @@ export const CommentService = {
       userId: params.userId,
     });
     if (params.assigneeId !== params.userId) {
-      await DomainEvents.dispatch({
-        id: randomUUID(),
-        type: "COMMENTS_ADDED",
-        payload: {
-          cardId: params.cardId,
-          changes: params.text,
-          userId: params.assigneeId,
-        },
-      });
+      // await DomainEvents.dispatch({
+      //   id: randomUUID(),
+      //   type: "COMMENTS_ADDED",
+      //   payload: {
+      //     cardId: params.cardId,
+      //     changes: params.text,
+      //     userId: params.assigneeId,
+      //   },
+      // });
     }
 
     return comment;

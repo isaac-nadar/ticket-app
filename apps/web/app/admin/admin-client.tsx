@@ -22,6 +22,7 @@ export function AdminDashboardClient({
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<"ADMIN" | "USER">("USER");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null); // 👇 Added error state
   const [isPending, startTransition] = useTransition();
   const [generatedCredentials, setGeneratedCredentials] = useState<{
     email: string;
@@ -29,17 +30,30 @@ export function AdminDashboardClient({
   } | null>(null);
 
   const handleAddEmployee = () => {
-    if (!email || !name) return;
+    setErrorMsg(null); // Clear previous errors
+    setGeneratedCredentials(null);
+
+    // Basic client validation
+    if (!name.trim()) {
+      setErrorMsg("Full Name is required.");
+      return;
+    }
+    if (!email.trim()) {
+      setErrorMsg("Email is required.");
+      return;
+    }
 
     startTransition(async () => {
       const res = await provisionEmployeeAction({ email, name, role });
-      if (res?.success && res.data) {
+
+      if (res?.success === true && res.data) {
         setGeneratedCredentials({ email: email, pass: res.data.tempPassword });
         setEmail("");
         setName("");
         setRole("USER");
-      } else {
-        alert(res?.error || "Failed to create user");
+      } else if(res.success === false) {
+        // 👇 Display the specific DB error returned from the server
+        setErrorMsg(res?.error || "Failed to create user");
       }
     });
   };
@@ -71,7 +85,7 @@ export function AdminDashboardClient({
 
         <div className="space-y-1">
           <Label>Role</Label>
-          <Select value={role} onValueChange={(val: any) => setRole(val)}>
+          <Select value={role} onValueChange={(val: "ADMIN" | "USER") => setRole(val)}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -81,6 +95,13 @@ export function AdminDashboardClient({
             </SelectContent>
           </Select>
         </div>
+
+        {/* 👇 Inline Error Message */}
+        {errorMsg && (
+          <p className="text-sm text-red-600 font-medium bg-red-50 p-2 rounded-md border border-red-200">
+            {errorMsg}
+          </p>
+        )}
 
         <Button
           onClick={handleAddEmployee}
@@ -108,7 +129,7 @@ export function AdminDashboardClient({
         )}
       </div>
 
-      {/* USER LIST */}
+      {/* USER LIST (Untouched) */}
       <div className="col-span-1 md:col-span-2 rounded-xl border bg-card p-6 shadow-sm">
         <h2 className="font-semibold text-lg border-b pb-2 mb-4">
           Active Directory

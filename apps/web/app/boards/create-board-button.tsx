@@ -38,14 +38,14 @@ export function CreateBoardButton() {
     startTransition(async () => {
       const res = await createBoardAction(boardName);
 
-      if (res.success && res.boardId) {
+      if (res.success && res.data.boardId) {
         setIsOpen(false);
-        setBoardName(""); // Reset the form
+        setBoardName("");
 
-        // ⚡ INSTANT ROUTING: Teleport the Admin straight to their new board!
-        router.push(`/boards/${res.boardId}`);
-      } else {
-        setError(res.error || "Failed to create board.");
+        router.push(`/boards/${res.data.boardId}`);
+      } else if (!res?.success) {
+        setError(res?.error || "Failed to create board.");
+        return;
       }
     });
   };

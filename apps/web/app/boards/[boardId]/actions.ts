@@ -65,9 +65,10 @@ export async function createCardAction(
   boardId: string,
   columnId: string,
   title: string,
+  parentId?: string,
 ) {
   try {
-    await CardService.createCard(title, "FEATURE", columnId);
+    await CardService.createCard(title, "FEATURE", columnId, parentId);
 
     await redis.del(`board:${boardId}:data`);
     revalidatePath(`/boards/${boardId}`);
@@ -206,5 +207,75 @@ export const assignUserToBoardAction = createSafeAction(
 
     revalidatePath(`/boards/${data.boardId}`);
     return { success: true, data: null };
+  },
+);
+
+export const updateCardPriorityAction = createSafeAction(
+  async (
+    data: {
+      cardId: string;
+      boardId: string;
+      priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+    },
+    { user },
+  ) => {
+    // 1. Security Check: Ensure the user belongs to this board (or is an Admin)
+
+    const boardAccess = await BoardUserService.checkUserAccessToBoard(
+      user.userId,
+      data.boardId,
+    );
+
+    if (!boardAccess && user.role !== "ADMIN") {
+      throw new Error("Forbidden: You do not have access to this board.");
+    }
+
+    // 2. Update the card
+    await CardService.updateCardDetails(data.cardId, {
+      priority: data.priority,
+    });
+
+    // 3. Purge the cache so the Kanban board instantly shows the new flag
+    revalidatePath(`/boards/${data.boardId}`);
+    return {
+      success: true,
+      data: { message: "Priority updated successfully" },
+    };
+  },
+);
+
+export const updateCardDescriptionAction = createSafeAction(
+  async (
+    data: {
+      cardId: string;
+      boardId: string;
+      description: string;
+    },
+    { user },
+  ) => {
+    // 1. Security Check: Ensure the user belongs to this board (or is an Admin)
+    const boardAccess = await BoardUserService.checkUserAccessToBoard(
+      user.userId,
+      data.boardId,
+    );
+
+    if (!boardAccess && user.role !== "ADMIN") {
+      throw new Error("Forbidden: You do not have access to this board.");
+    }
+
+    // 2. Update the card description and handle mentions
+    await CardService.updateCardDescription(
+      data.cardId,
+      data.description,
+      user.userId,
+      user.name || "Unknown User",
+    );
+
+    // 3. Purge the cache so the Kanban board instantly shows the new description
+    revalidatePath(`/boards/${data.boardId}`);
+    return {
+      success: true,
+      data: { message: "Description updated successfully" },
+    };
   },
 );

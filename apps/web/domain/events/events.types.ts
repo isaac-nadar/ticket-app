@@ -27,10 +27,13 @@ export type DomainEventMap = {
     boardId: string;
     cardId: string;
     userId?: string;
+    description?: string;
+    actorName?: string;
     changes: UpdateCardPayload;
   };
   BOARD_UPDATED: { boardId: string }; // We will use this for WebSockets!
   CARD_DELETED: { cardId: string; userId?: string };
+  NOTIFICATION_CREATED: { type: string; payload?: string[] };
 };
 
 // 2. A helper type for dispatching

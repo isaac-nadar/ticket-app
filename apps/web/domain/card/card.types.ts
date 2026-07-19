@@ -3,6 +3,8 @@ import { User } from "../user/user.types";
 
 export type CardType = "BUG" | "FEATURE";
 
+export type CardPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+
 export type Comment = {
   id: string;
   text: string;
@@ -26,6 +28,8 @@ export type Attachment = {
 export type Card = {
   id: string;
   title: string;
+  sequenceNum: string;
+  priority: CardPriority;
   type: CardType;
   columnId: string;
   description?: string;
@@ -34,8 +38,12 @@ export type Card = {
   assignee: User;
   comments: Comment[];
   attachments: Attachment[];
+  tags?: string[];
   column?: Column;
   boardId?: string;
+  dueDate?: string;
+  createdAt?: string;
+  subtasks?: Card[];
   board?: {
     title?: string;
   };

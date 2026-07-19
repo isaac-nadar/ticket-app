@@ -1,17 +1,22 @@
 "use client";
 
-import { useState, useEffect, useTransition, startTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { getCardDetailsAction, updateCardDetailsAction } from "./actions";
-import { Bug, Sparkles } from "lucide-react";
+import {
+  Bug,
+  CheckSquare,
+  CornerDownRight,
+  Plus,
+  Sparkles,
+} from "lucide-react";
 
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
-  SheetTitle,
 } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,12 +37,21 @@ import { addCommentAction } from "./actions";
 import { formatDistanceToNow } from "date-fns";
 import { FileUploadZone } from "@/components/file-upload-zone";
 
+import { updateCardPriorityAction } from "./actions";
+import { Flag, AlertCircle, ArrowDown, Minus, ArrowUp } from "lucide-react";
+import { createCardAction } from "./actions";
+
+import { RichTextEditor } from "@/components/rich-text-editor";
+// import your server action to update the description...
+import { updateCardDescriptionAction } from "./actions";
+import { User } from "@/domain/user/user.types";
+
 export function CardDetailSheet({ board }: { board: Board }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const activeCardId = searchParams.get("card");
+  const activeCardId: string = searchParams.get("card") || "";
   const isOpen = !!activeCardId;
 
   // Local state
@@ -51,6 +65,13 @@ export function CardDetailSheet({ board }: { board: Board }) {
   const [newComment, setNewComment] = useState("");
   const [isCommenting, startCommentRequest] = useTransition();
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [isTransitionPending, startTransition] = useTransition();
+
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
+  const [isPendingSubtask, startSubtaskTransition] = useTransition();
+
+  // const [description, setDescription] = useState(card.description || "");
+  const [isSavingDesc, startDescTransition] = useTransition();
 
   useEffect(() => {
     if (activeCardId && board) {
@@ -95,8 +116,34 @@ export function CardDetailSheet({ board }: { board: Board }) {
     }
   }, [activeCardId, board]);
 
+  const handleAddSubtask = () => {
+    if (!newSubtaskTitle.trim() || !card) return;
+
+    startSubtaskTransition(async () => {
+      await createCardAction(board.id, card.columnId, newSubtaskTitle, card.id);
+      setNewSubtaskTitle("");
+    });
+  };
+
   const handleClose = () => {
     router.push(pathname, { scroll: false });
+  };
+
+  const openSubtask = (subtaskId: string) => {
+    // const params = new URLSearchParams(searchParams.toString());
+    // params.set("cardId", subtaskId);
+    router.push(`/boards/${board.id}?card=${subtaskId}`);
+  };
+
+  const handlePriorityChange = (newPriority: string) => {
+    if (!card) return;
+    startTransition(async () => {
+      await updateCardPriorityAction({
+        cardId: card.id,
+        boardId: board.id,
+        priority: newPriority as "LOW" | "MEDIUM" | "HIGH" | "URGENT",
+      });
+    });
   };
 
   const handleSave = () => {
@@ -128,6 +175,17 @@ export function CardDetailSheet({ board }: { board: Board }) {
         assigneeId: assigneeId === "unassigned" ? null : assigneeId, // Pass this so we can notify the assignee of new comment
       });
       setNewComment(""); // Clear input on success
+    });
+  };
+
+  const handleSaveDescription = (newDesc: string) => {
+    setDescription(newDesc);
+    startDescTransition(async () => {
+      await updateCardDescriptionAction({
+        cardId: activeCardId || "",
+        boardId: board.id,
+        description: newDesc,
+      });
     });
   };
 
@@ -204,6 +262,43 @@ export function CardDetailSheet({ board }: { board: Board }) {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-semibold uppercase text-muted-foreground">
+                  Priority
+                </span>
+                <Select
+                  value={card?.priority}
+                  onValueChange={handlePriorityChange}
+                  disabled={isTransitionPending}
+                >
+                  <SelectTrigger className="w-full h-8 text-xs">
+                    <SelectValue placeholder="Select Priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LOW">
+                      <div className="flex items-center gap-2">
+                        <ArrowDown className="h-3 w-3 text-blue-500" /> Low
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="MEDIUM">
+                      <div className="flex items-center gap-2">
+                        <Minus className="h-3 w-3 text-gray-500" /> Medium
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="HIGH">
+                      <div className="flex items-center gap-2">
+                        <ArrowUp className="h-3 w-3 text-orange-500" /> High
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="URGENT">
+                      <div className="flex items-center gap-2 text-red-600 font-medium">
+                        <AlertCircle className="h-3 w-3" /> Urgent
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <FileUploadZone cardId={activeCardId} boardId={board.id} />
@@ -259,7 +354,7 @@ export function CardDetailSheet({ board }: { board: Board }) {
             )}
 
             {/* DESCRIPTION INPUT */}
-            <div className="flex flex-col gap-2 mt-4">
+            {/* <div className="flex flex-col gap-2 mt-4">
               <Label className="text-sm font-semibold">Description</Label>
               <Textarea
                 value={description}
@@ -267,6 +362,72 @@ export function CardDetailSheet({ board }: { board: Board }) {
                 placeholder="Add a more detailed description..."
                 className="min-h-[120px] bg-muted/50 resize-none border-ui"
               />
+            </div> */}
+
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold text-muted-foreground mb-2">
+                Description
+              </h3>
+              <RichTextEditor
+                content={description}
+                onChange={handleSaveDescription}
+                users={board.users.map((bu: BoardUser) => ({
+                  id: bu.id,
+                  name: bu.user.name,
+                }))}
+              />
+              {isSavingDesc && (
+                <span className="text-[10px] text-muted-foreground ml-2">
+                  Saving...
+                </span>
+              )}
+            </div>
+
+            <div className="mt-8 flex flex-col gap-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <CheckSquare className="h-4 w-4 text-muted-foreground" />
+                Subtasks
+              </h3>
+
+              {/* The List of existing subtasks */}
+              <div className="flex flex-col gap-2">
+                {card?.subtasks?.map((subtask: Card) => (
+                  <div
+                    key={subtask.id}
+                    onClick={() => openSubtask(subtask.id)}
+                    className="flex items-center gap-3 cursor-pointer rounded-md border p-2 text-sm bg-muted/20"
+                  >
+                    <CornerDownRight className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{subtask.title}</span>
+                    <span className="ml-auto text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                      {subtask.column?.name || "To Do"}
+                    </span>
+                    <span className="font-medium">
+                      {board.prefix || "CARD"}-{subtask.sequenceNum}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* The Input to add a new subtask */}
+              <div className="flex items-center gap-2 mt-1">
+                <Input
+                  placeholder="Add a subtask..."
+                  className="h-8 text-sm"
+                  value={newSubtaskTitle}
+                  onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddSubtask()}
+                  disabled={isPendingSubtask}
+                />
+                <Button
+                  size="sm"
+                  className="h-8"
+                  onClick={handleAddSubtask}
+                  disabled={isPendingSubtask || !newSubtaskTitle.trim()}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
 

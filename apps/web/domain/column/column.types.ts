@@ -6,6 +6,7 @@ export type Column = {
   name: string;
   position: number;
   boardId: string;
+  isBacklog?: boolean;
   cards: Card[];
   board?: Board;
 };

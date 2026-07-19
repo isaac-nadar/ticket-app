@@ -21,7 +21,7 @@ export const getUploadUrlAction = createSafeAction(
 export const saveAttachmentAction = createSafeAction(
   async (
     data: {
-      cardId: string | null;
+      cardId: string;
       boardId: string;
       fileName: string;
       fileUrl: string;

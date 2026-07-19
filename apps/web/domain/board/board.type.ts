@@ -4,6 +4,7 @@ import { Column } from "../column/column.types";
 export type Board = {
   id: string;
   name: string;
+  prefix: string;
   users: BoardUser[];
   boardId: string;
   createdAt: string;
@@ -16,4 +17,5 @@ export type BoardUser = {
   userId: string;
   board: Board;
   user: AuthUser;
+  name: string;
 };

@@ -1,36 +1,39 @@
 import { useState, useTransition } from "react";
-// 1. Swap useDroppable for useSortable
 import {
   SortableContext,
   verticalListSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
-// 2. Import CSS utility for the column sliding animation
 import { CSS } from "@dnd-kit/utilities";
 import { KanbanCard } from "./kanban-card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-// 3. Add GripHorizontal to your icons
 import { PlusIcon, XIcon, GripHorizontal } from "lucide-react";
 import { createCardAction } from "./actions";
 
+// Add isBacklog to the type if it isn't in your global types yet
 import { Card } from "@/domain/card/card.types";
 import { Column } from "@/domain/column/column.types";
 
 export function KanbanColumn({
   column,
   boardId,
-  isCreator, // 4. Add the RBAC permission prop!
+  boardPrefix = null,
+  isCreator,
+  isDragDisabled, // 👈 1. Added this prop to handle filters!
+  availableTags = [],
 }: {
-  column: Column;
+  column: Column & { isBacklog?: boolean }; // 👈 2. Ensure TypeScript knows about the backlog flag
   boardId: string;
-  isCreator?: boolean; // Made optional just in case it takes a second to load
+  boardPrefix: string | null;
+  isCreator?: boolean;
+  isDragDisabled?: boolean;
+  availableTags?: string[];
 }) {
   const [isAdding, setIsAdding] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState("");
   const [isPending, startTransition] = useTransition();
 
-  // 5. Upgrade the Hook
   const {
     setNodeRef,
     attributes,
@@ -42,7 +45,8 @@ export function KanbanColumn({
   } = useSortable({
     id: column.id,
     data: { type: "Column", column },
-    disabled: !isCreator, // If they aren't the creator, they can't drag it!
+    // 👈 3. THE MAGIC: Disable dragging if they lack permissions, if filters are active, OR if it's the backlog!
+    disabled: !isCreator || column.isBacklog || isDragDisabled,
   });
 
   const cardIds = column.cards.map((card: Card) => card.id);
@@ -57,13 +61,11 @@ export function KanbanColumn({
     });
   };
 
-  // 6. The animation style for when the column moves
   const style = {
     transition,
     transform: CSS.Translate.toString(transform),
   };
 
-  // 7. Render a placeholder ghost when the column is being dragged
   if (isDragging) {
     return (
       <div
@@ -73,17 +75,19 @@ export function KanbanColumn({
     );
   }
 
+  // 👈 4. DYNAMIC STYLING: Make standard columns look like cards, but make the backlog fill the sidebar cleanly
+  const containerClasses = column.isBacklog
+    ? "flex flex-col gap-3 w-full h-full min-h-0"
+    : "flex flex-col gap-3 w-80 shrink-0 bg-muted/50 p-3 rounded-xl border border-border max-h-full min-h-0";
+  // (Note: Changed p-4 to p-3 to match backlog spacing, and removed h-max)
+
   return (
-    <div
-      ref={setNodeRef} // <-- Moved to the OUTER wrapper so the whole column is the target!
-      style={style}
-      className="flex flex-col gap-4 w-80 shrink-0 bg-muted/50 p-4 rounded-xl border border-border h-max max-h-full"
-    >
+    <div ref={setNodeRef} style={style} className={containerClasses}>
       {/* HEADER */}
       <div className="font-semibold flex items-center justify-between">
         <div className="flex items-center gap-2">
-          {/* DRAG HANDLE (Only visible to Admin/Creator) */}
-          {isCreator && (
+          {/* 👈 5. Hide the drag grip if it is the backlog column */}
+          {isCreator && !column.isBacklog && (
             <div
               {...attributes}
               {...listeners}
@@ -100,25 +104,29 @@ export function KanbanColumn({
       </div>
 
       {/* DROP ZONE FOR CARDS */}
-      {/* Notice we removed ref={setNodeRef} from here, but kept the isOver highlight! */}
       <div
-        className={`flex flex-col gap-3 min-h-[50px] rounded-lg transition-colors ${
+        className={`flex-1 overflow-y-auto min-h-0 pr-1 flex flex-col gap-3 rounded-lg transition-colors ${
           isOver ? "bg-muted/80 ring-2 ring-primary/20" : ""
         }`}
       >
         <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
           {column.cards.map((card: Card) => (
-            <KanbanCard key={card.id} card={card} />
+            <KanbanCard
+              key={card.id}
+              card={card}
+              boardPrefix={boardPrefix}
+              // isDragDisabled={isDragDisabled}
+            />
           ))}
         </SortableContext>
       </div>
 
-      {/* INLINE ADD CARD FOOTER (Completely untouched) */}
+      {/* INLINE ADD CARD FOOTER */}
       {isAdding ? (
         <div className="flex flex-col gap-2 mt-2">
           <Textarea
             autoFocus
-            placeholder="Enter a title for this card..."
+            placeholder="Card title... (Pro tip: use #tags)"
             value={newCardTitle}
             onChange={(e) => setNewCardTitle(e.target.value)}
             onKeyDown={(e) => {
@@ -129,6 +137,19 @@ export function KanbanColumn({
             }}
             className="min-h-[80px] bg-card resize-none"
           />
+          {availableTags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pb-1">
+              {availableTags.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => setNewCardTitle((prev) => `${prev} ${tag}`)}
+                  className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground hover:bg-blue-100 hover:text-blue-700 transition-colors"
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <Button
               size="sm"

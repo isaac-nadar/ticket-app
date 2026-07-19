@@ -12,10 +12,11 @@ async function main() {
       email: adminEmail,
       password: hash,
       role: "ADMIN",
+      name: "System Admin"
     },
   });
 
-  console.log("Admin user created:", admin.email);
+  console.log("System Admin created:", admin.email);
 }
 
 main()

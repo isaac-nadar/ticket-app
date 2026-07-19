@@ -1,39 +1,28 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
-import { verifyJwt } from "@/lib/jwt";
-import { AuthUser } from "@/lib/auth";
 import { BoardService, BoardUserService } from "@/domain/board/board.service";
+import { createSafeAction } from "@/lib/safe-action";
 
-export async function createBoardAction(name: string) {
-  try {
-    // 1. Securely grab your custom cookie
-    const cookieStore = await cookies();
-    const token = cookieStore.get("kanban_token")?.value;
+export const createBoardAction = createSafeAction(
+  async (name: string, { user }) => {
+    const prefix = generateBoardPrefix(name);
 
-    if (!token) {
-      throw new Error("Unauthorized: Missing token");
-    }
-
-    // 2. Verify using your exact JWT utility
-    const user = verifyJwt(token) as unknown as AuthUser;
-
-    // 3. RBAC (Role-Based Access Control) Check
-    if (user.role !== "ADMIN") {
-      throw new Error("Forbidden: Only Admins can create boards.");
-    }
-
-    // 4. Create the board
-    const newBoard = await BoardService.createBoard(name);
-
-    // 5. Automatically assign the Admin to their new board
-    await BoardUserService.assignUserToBoard(newBoard.id, user.userId);
+    const board = await BoardService.createBoard(name, prefix);
+    await BoardUserService.assignUserToBoard(board.id, user.userId);
 
     revalidatePath("/boards");
-    return { success: true, boardId: newBoard.id };
-  } catch (error: unknown) {
-    console.error("[SERVER] Failed to create board:", error);
-    return { success: false, error: (error as Error).message };
+    return { success: true, data: { boardId: board.id } };
+  },
+  "ADMIN",
+);
+
+function generateBoardPrefix(name: string) {
+  const words = name.trim().split(/\s+/);
+  if (words.length >= 2) {
+    // Take first letter of up to 3 words
+    return (words[0][0] + words[1][0] + (words[2]?.[0] || "")).toUpperCase();
   }
+  // If it's one word, take the first 3 letters
+  return name.substring(0, 3).toUpperCase();
 }

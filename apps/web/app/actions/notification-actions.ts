@@ -14,9 +14,9 @@ export const getUnreadCountAction = createSafeAction(
 
 // 2. Fetch Notification List (Lazy Load)
 export const getNotificationsAction = createSafeAction(
-  async (cursor?: string, { user }) => {
+  async (data: { cursor?: string }, { user }) => {
     noStore();
-    const feed = await NotificationService.getFeed(user.userId, 10, cursor);
+    const feed = await NotificationService.getFeed(user.userId, 10, data.cursor);
 
     return { success: true, data: feed };
   },

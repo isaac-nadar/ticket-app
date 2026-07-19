@@ -1,6 +1,7 @@
 // apps/web/domain/card/card.repo.ts
 import prisma from "@/lib/db";
 import { CardType } from "./card.types";
+import { User } from "../user/user.types";
 
 type Tx = typeof prisma;
 
@@ -9,24 +10,65 @@ export type UpdateCardPayload = Partial<{
   description: string | null;
   type: CardType | null;
   assigneeId: string | null;
+  priority: string | null;
 }>;
 
+const extractTags = (text: string): string[] => {
+  const matches = text.match(/#[\w-]+/g); // Matches #login, #auth-service, #api_v2
+  if (!matches) return [];
+  // Use a Set to remove duplicates, and map to lowercase
+  return Array.from(new Set(matches.map((tag) => tag.toLowerCase())));
+};
+
+const extractMentions = (text: string): string[] => {
+  const matches = text.match(/@[\w.-]+/g);
+  if (!matches) return [];
+  // Remove the '@' symbol and get unique usernames
+  return Array.from(
+    new Set(matches.map((mention) => mention.substring(1).toLowerCase())),
+  );
+};
+
 export const CardRepository = {
-  create: async (title: string, type: "BUG" | "FEATURE", columnId: string) => {
-    const lastCard = await prisma.card.findFirst({
-      where: { columnId },
-      orderBy: { position: "desc" },
-    });
+  create: async (
+    title: string,
+    type: "BUG" | "FEATURE",
+    columnId: string,
+    parentId?: string,
+  ) => {
+    const parsedTags = extractTags(title);
+    return await prisma.$transaction(async (tx: Tx) => {
+      const column = await tx.column.findUnique({
+        where: { id: columnId },
+        select: { boardId: true },
+      });
 
-    const nextPosition = lastCard ? lastCard.position + 1 : 0;
+      if (!column) throw new Error("Column not found");
 
-    return prisma.card.create({
-      data: {
-        title,
-        type,
-        columnId,
-        position: nextPosition,
-      },
+      const board = await tx.board.update({
+        where: { id: column.boardId },
+        data: { nextSequence: { increment: 1 } },
+        select: { nextSequence: true },
+      });
+
+      const lastCard = await tx.card.findFirst({
+        where: { columnId },
+        orderBy: { position: "desc" },
+      });
+
+      const nextPosition = lastCard ? lastCard.position + 1 : 0;
+
+      return tx.card.create({
+        data: {
+          title,
+          type,
+          columnId,
+          parentId,
+          position: nextPosition,
+          sequenceNum: board.nextSequence - 1,
+          tags: parsedTags,
+        },
+      });
     });
   },
 
@@ -172,6 +214,7 @@ export const CardRepository = {
       where: { id: cardId },
       include: {
         attachments: true,
+        subtasks: true,
         comments: {
           include: { user: true },
           orderBy: { createdAt: "desc" },
@@ -202,5 +245,51 @@ export const CardRepository = {
         },
       },
     });
+  },
+
+  updateDescription: async (
+    cardId: string,
+    description: string,
+    actorId: string,
+    actorName: string,
+  ) => {
+    const mentionedUsernames = extractMentions(description);
+
+    // 👇 1. Execute the DB logic and capture the results
+    const result = await prisma.$transaction(async (tx: Tx) => {
+      const updatedCard = await tx.card.update({
+        where: { id: cardId },
+        data: { description },
+      });
+
+      let notificationsToDispatch = [];
+
+      if (mentionedUsernames.length > 0) {
+        const mentionedUsers = await tx.user.findMany({
+          where: { name: { in: mentionedUsernames } },
+        });
+
+        notificationsToDispatch = mentionedUsers
+          .filter((u: User) => u.id !== actorId)
+          .map((user: User) => ({
+            userId: user.id,
+            actorId: actorId,
+            cardId: cardId,
+            title: "You were mentioned",
+            body: `${actorName} mentioned you in a card`,
+          }));
+
+        if (notificationsToDispatch.length > 0) {
+          await tx.notification.createMany({
+            data: notificationsToDispatch,
+          });
+        }
+      }
+
+      // Return BOTH the card and the array of notifications so we can broadcast them
+      return { updatedCard, notificationsToDispatch };
+    });
+
+    return result.updatedCard;
   },
 };

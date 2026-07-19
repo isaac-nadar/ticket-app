@@ -6,7 +6,7 @@ import { UserService } from "@/domain/user/user.service";
 export async function POST(req: NextRequest) {
   requireAdmin(req);
 
-  const { email, password, role } = await req.json();
+  const { email, password, role, name } = await req.json();
 
   const hash = await bcrypt.hash(password, 10);
 
@@ -17,9 +17,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (!name) {
+    return NextResponse.json(
+      { error: "name required" },
+      { status: 400 },
+    );
+  }
+
   try {
     const user = await UserService.createUser({
       email,
+      name,
       passwordHash: hash,
       role: role ?? "USER",
     });
