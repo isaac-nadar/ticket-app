@@ -20,7 +20,7 @@ export default async function BoardPage({
   const cookieStore = await cookies();
   const token = cookieStore.get("kanban_token")?.value;
 
-  if (!token) redirect("/login"); // Fallback safety
+  if (!token) redirect("/"); // Fallback safety
 
   let userId;
   let userRole;
@@ -29,7 +29,7 @@ export default async function BoardPage({
     userId = decoded.userId;
     userRole = decoded.role;
   } catch {
-    redirect("/login");
+    redirect("/");
   }
 
   // 2. THE RESOURCE BOUNCER (IDOR Protection)

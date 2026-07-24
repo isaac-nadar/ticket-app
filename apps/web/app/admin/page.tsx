@@ -10,7 +10,7 @@ export default async function AdminPage() {
   const cookieStore = await cookies();
   const token = cookieStore.get("kanban_token")?.value;
 
-  if (!token) redirect("/login");
+  if (!token) redirect("/");
 
   const user = verifyJwt(token) as unknown as AuthUser;
 

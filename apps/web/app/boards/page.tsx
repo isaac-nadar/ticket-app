@@ -14,7 +14,7 @@ export default async function BoardsDashboard() {
   const cookieStore = await cookies();
   const token = cookieStore.get("kanban_token")?.value;
 
-  if (!token) redirect("/login");
+  if (!token) redirect("/");
 
   let userId;
   let userRole;
@@ -23,7 +23,7 @@ export default async function BoardsDashboard() {
     userId = decoded.userId;
     userRole = decoded.role;
   } catch {
-    redirect("/login");
+    redirect("/");
   }
 
   // 2. Fetch boards this user belongs to

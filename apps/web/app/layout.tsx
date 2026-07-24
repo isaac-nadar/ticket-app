@@ -6,6 +6,8 @@ import { StyleProvider } from "./style-provider";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { ProfileSettings } from "@/components/profile-settings";
 import { NotificationBell } from "@/components/notification-bell";
+import { cookies } from "next/headers";
+import { LogoutButton } from "@/components/logout-button";
 
 // 1. Load the Corporate Font (Variable weight)
 const inter = Inter({
@@ -25,11 +27,15 @@ export const metadata: Metadata = {
   description: "A multi-dimensional theme engine demo",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+
+  const cookieStore = await cookies();
+  const token = cookieStore.get("kanban_token")?.value;
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body
@@ -46,9 +52,13 @@ export default function RootLayout({
                   and pass it down as `initialName`. For now, it will start empty
                   and fill in when they type!
                 */}
-                <NotificationBell />
-                <ProfileSettings />
                 <ThemeSwitcher />
+                {token && <>
+                  <NotificationBell />
+                  <ProfileSettings />
+                  <LogoutButton />
+                </>}
+
               </div>
 
               {/* Your page content */}

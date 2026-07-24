@@ -18,7 +18,7 @@ export function proxy(request: NextRequest) {
   // --- 2. ADMIN ROUTE PROTECTION ---
   if (pathname.startsWith("/admin")) {
     if (!token) {
-      return NextResponse.redirect(new URL("/login", request.url));
+      return NextResponse.redirect(new URL("/", request.url));
     }
 
     try {
@@ -34,14 +34,14 @@ export function proxy(request: NextRequest) {
       }
     } catch (error) {
       // If the token is completely malformed or tampering is detected
-      return NextResponse.redirect(new URL("/login", request.url));
+      return NextResponse.redirect(new URL("/", request.url));
     }
   }
 
   // --- 3. STANDARD USER ROUTE PROTECTION ---
   if (pathname.startsWith("/boards")) {
     if (!token) {
-      return NextResponse.redirect(new URL("/login", request.url));
+      return NextResponse.redirect(new URL("/", request.url));
     }
   }
 
