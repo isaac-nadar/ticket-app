@@ -86,7 +86,10 @@ export function BoardClient({
     });
 
     return () => {
-      if (pusherClient) pusherClient.unsubscribe(channelName);
+      if (pusherClient) {
+        pusherClient.unsubscribe(channelName);
+        channel.unbind_all();
+      }
     };
   }, [board, router]);
 

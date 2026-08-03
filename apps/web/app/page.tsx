@@ -1,45 +1,35 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { startTransition, useState } from "react";
 
 // 👇 1. Import the Multi-Dimensional UI components we built!
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { loginAction } from "./actions/auth-actions";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = (e: React.FormEvent) => {
+      e.preventDefault();
     setError("");
     setLoading(true);
 
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      startTransition(async () => {
+        // Pass the data straight to the server action
+        const res = await loginAction({ email, password });
+
+        // If it reaches this block, the login failed (otherwise redirect takes over)
+        if (res?.success === false) {
+          setError(res.error);
+        }
+        setLoading(false);
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Login failed");
-      }
-
-      router.push("/boards");
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Unexpected error";
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
   return (
     // 2. Removed bg-gray-50. Let globals.css handle the background entirely.

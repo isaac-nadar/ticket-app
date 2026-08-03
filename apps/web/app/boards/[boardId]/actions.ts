@@ -116,30 +116,49 @@ export const inviteUserAction = createSafeAction(
 );
 
 // --- UPDATE CARD DETAILS ---
-export async function updateCardDetailsAction(
+export const updateCardDetailsAction = async (
   boardId: string,
   cardId: string,
   data: {
     title: string;
-    type: CardType;
-    description: string | null;
+    type: "BUG" | "FEATURE";
+    description: string;
     assigneeId: string | null;
-  },
-) {
+  }
+) => {
   try {
-    // 1. Update the database
-    await CardService.updateCardDetails(cardId, data);
+    const existingCard = await prisma.card.findUnique({
+      where: { id: cardId },
+      select: { assigneeId: true, title: true }
+    });
 
-    // 2. Purge Cache & Refresh UI
+    if (!existingCard) {
+      return { success: false, error: "Card not found" };
+    }
+
+    const updatedCard =await CardService.updateCardDetails(cardId, data);
+
+    // If the new assignee is not null AND it doesn't match the old assignee, fire the notification!
+    if (data.assigneeId && data.assigneeId !== existingCard.assigneeId) {
+      // await NotificationService.createNotification({
+      //   userId: data.assigneeId,
+      //   type: "CARD_ASSIGNED",
+      //   title: "New Assignment",
+      //   message: `You were assigned to: ${existingCard.title}`,
+      //   link: `/boards/${boardId}?card=${cardId}`,
+      // });
+
+      // Note: If you want real-time bell updates, trigger Pusher here!
+    }
     await redis.del(`board:${boardId}:data`);
     revalidatePath(`/boards/${boardId}`);
+    return { success: true, data: updatedCard };
 
-    return { success: true };
   } catch (error) {
-    console.error("[SERVER] Failed to update card:", error);
+    console.error("Failed to update card details:", error);
     return { success: false, error: "Failed to update card details" };
   }
-}
+};
 
 export const getCardCommentsAction = createSafeAction(
   async (cardId: string) => {
