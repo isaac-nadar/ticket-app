@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redis } from "@/lib/redis";
-import { AuthUser } from "@/lib/auth";
+import { AuthUser, getCurrentUser } from "@/lib/auth";
 import { UserService } from "@/domain/user/user.service";
 import { BoardUserService } from "@/domain/board/board.service";
 import { CardType } from "@/domain/card/card.types";
@@ -16,20 +16,24 @@ export async function moveCardAction(
   cardId: string,
   targetColumnId: string,
   targetPosition: number,
-  userId?: string,
+  assigneeId?: string,
 ) {
   try {
     console.log(
       `[SERVER] Moving Card ${cardId} to Column ${targetColumnId} at pos ${targetPosition}`,
     );
 
-    // TODO: use safe action to ensure it doesn't trigger notification to the user moving the card
+    // Actor is derived server-side (not trusted from the client) so we can
+    // reliably skip notifying whoever is actually performing the move.
+    const actor = await getCurrentUser();
+
     await CardService.reorderCard(
       boardId,
       cardId,
       targetColumnId,
       targetPosition,
-      userId,
+      assigneeId,
+      actor?.userId,
     );
 
     const CACHE_KEY = `board:${boardId}:data`;
@@ -136,20 +140,16 @@ export const updateCardDetailsAction = async (
       return { success: false, error: "Card not found" };
     }
 
-    const updatedCard =await CardService.updateCardDetails(cardId, data);
+    // Actor is derived server-side so the assignee-notification pipeline
+    // (domain/card/card.service.ts) can skip self-notifications reliably.
+    const actor = await getCurrentUser();
+    const updatedCard = await CardService.updateCardDetails(
+      cardId,
+      data,
+      boardId,
+      actor?.userId,
+    );
 
-    // If the new assignee is not null AND it doesn't match the old assignee, fire the notification!
-    if (data.assigneeId && data.assigneeId !== existingCard.assigneeId) {
-      // await NotificationService.createNotification({
-      //   userId: data.assigneeId,
-      //   type: "CARD_ASSIGNED",
-      //   title: "New Assignment",
-      //   message: `You were assigned to: ${existingCard.title}`,
-      //   link: `/boards/${boardId}?card=${cardId}`,
-      // });
-
-      // Note: If you want real-time bell updates, trigger Pusher here!
-    }
     await redis.del(`board:${boardId}:data`);
     revalidatePath(`/boards/${boardId}`);
     return { success: true, data: updatedCard };
@@ -250,9 +250,12 @@ export const updateCardPriorityAction = createSafeAction(
     }
 
     // 2. Update the card
-    await CardService.updateCardDetails(data.cardId, {
-      priority: data.priority,
-    });
+    await CardService.updateCardDetails(
+      data.cardId,
+      { priority: data.priority },
+      data.boardId,
+      user.userId,
+    );
 
     // 3. Purge the cache so the Kanban board instantly shows the new flag
     revalidatePath(`/boards/${data.boardId}`);
@@ -288,6 +291,7 @@ export const updateCardDescriptionAction = createSafeAction(
       data.description,
       user.userId,
       user.name || "Unknown User",
+      data.boardId,
     );
 
     // 3. Purge the cache so the Kanban board instantly shows the new description

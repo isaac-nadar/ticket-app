@@ -14,9 +14,9 @@ export const getUnreadCountAction = createSafeAction(
 
 // 2. Fetch Notification List (Lazy Load)
 export const getNotificationsAction = createSafeAction(
-  async (data: { cursor?: string }, { user }) => {
+  async (data: { cursor?: string } | undefined, { user }) => {
     noStore();
-    const feed = await NotificationService.getFeed(user.userId, 10, data.cursor);
+    const feed = await NotificationService.getFeed(user.userId, 10, data?.cursor);
 
     return { success: true, data: feed };
   },
@@ -26,6 +26,14 @@ export const getNotificationsAction = createSafeAction(
 export const markAsReadAction = createSafeAction(
   async ({ id }: { id: string }, { user }) => {
     await NotificationService.markRead(id, user.userId);
+    return { success: true, data: null };
+  },
+);
+
+// 4. Mark All as Read
+export const markAllAsReadAction = createSafeAction(
+  async (_payload: void, { user }) => {
+    await NotificationService.markAllRead(user.userId);
     return { success: true, data: null };
   },
 );

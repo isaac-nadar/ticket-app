@@ -33,6 +33,13 @@ export const DomainEvents = {
   },
 
   dispatch: async (event: DomainEvent) => {
+    // Server Actions and Route Handlers can land in separate module graphs,
+    // each with their own copy of `subscribers`. Registering listeners here
+    // (idempotent, see domain/bootstrap.ts) guarantees this module instance
+    // has them before we look anything up, regardless of which entry point
+    // triggered the dispatch.
+    await import("@/domain/bootstrap");
+
     const handlers = subscribers[event.type] || [];
     for (const handler of handlers) {
       await handler(event.payload, event);

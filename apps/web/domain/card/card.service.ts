@@ -39,7 +39,8 @@ export const CardService = {
     cardId: string,
     targetColumnId: string,
     targetPosition: number,
-    userId?: string,
+    assigneeId?: string,
+    actorId?: string,
   ) => {
     if (targetPosition < 0) {
       throw new Error("Invalid target position");
@@ -60,13 +61,19 @@ export const CardService = {
         cardId,
         targetColumnId,
         targetPosition,
-        userId,
+        assigneeId,
+        actorId,
       },
     });
     return card;
   },
 
-  async updateCardDetails(cardId: string, data: UpdateCardPayload) {
+  async updateCardDetails(
+    cardId: string,
+    data: UpdateCardPayload,
+    boardId?: string,
+    actorId?: string,
+  ) {
     if (!cardId) throw new Error("cardId is required");
 
     const updatedCard = await CardRepository.update(cardId, data);
@@ -76,16 +83,19 @@ export const CardService = {
       id: randomUUID(),
       type: "CARD_UPDATED",
       payload: {
+        boardId: boardId ?? "",
         cardId,
         changes: data,
-        userId: data.assigneeId || "", // Passing this so notifications know who to alert
+        // The card's CURRENT assignee (not just when assigneeId is part of this update)
+        assigneeId: updatedCard.assigneeId ?? undefined,
+        actorId,
       },
     });
 
     return updatedCard;
   },
 
-  async deleteCard(cardId: string) {
+  async deleteCard(cardId: string, actorId?: string) {
     if (!cardId) throw new Error("cardId is required");
 
     const card = await CardRepository.softDelete(cardId);
@@ -94,7 +104,7 @@ export const CardService = {
     await DomainEvents.dispatch({
       id: randomUUID(),
       type: "CARD_DELETED", // Add this to your domain-events.ts types later
-      payload: { cardId },
+      payload: { cardId, actorId },
     });
 
     return card;
@@ -116,6 +126,7 @@ export const CardService = {
     description: string,
     actorId: string,
     actorName: string,
+    boardId?: string,
   ) {
     if (!cardId) throw new Error("cardId is required");
 
@@ -131,10 +142,14 @@ export const CardService = {
       id: randomUUID(),
       type: "CARD_UPDATED",
       payload: {
+        boardId: boardId ?? "",
         cardId,
         description,
-        userId: actorId,
+        // Notify the card's assignee, not the person editing it
+        assigneeId: result.updatedCard.assigneeId ?? undefined,
+        actorId,
         actorName,
+        changes: {},
       },
     });
 

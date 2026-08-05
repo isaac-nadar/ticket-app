@@ -16,10 +16,12 @@ import {
   getUnreadCountAction,
   getNotificationsAction,
   markAsReadAction,
+  markAllAsReadAction,
 } from "@/app/actions/notification-actions";
 import { Notification } from "@/domain/notification/notification.type";
+import { pusherClient } from "@/lib/pusher-client";
 
-export function NotificationBell() {
+export function NotificationBell({ userId }: { userId: string }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[] | []>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -34,20 +36,49 @@ export function NotificationBell() {
     });
   }, []);
 
+  // 1b. REAL-TIME: Push the unread count (and refresh the list, if open) the
+  // moment a notification is created for this user — no manual refresh needed.
+  useEffect(() => {
+    if (!pusherClient || !userId) return;
+
+    const channelName = `user-${userId}`;
+    const channel = pusherClient.subscribe(channelName);
+    channel.bind("notification", (data: { count: number }) => {
+      setUnreadCount(data.count);
+      if (isOpen) {
+        loadNotifications();
+      }
+    });
+
+    return () => {
+      if (pusherClient) {
+        pusherClient.unsubscribe(channelName);
+        channel.unbind_all();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, isOpen]);
+
+  const loadNotifications = async () => {
+    startTransition(() => {
+      setIsLoading(true);
+    });
+    try {
+          const res = await getNotificationsAction();
+          if (res.success && "data" in res && res.data) {
+              setNotifications(res.data.data as Notification[]);
+          }
+      } finally {
+          return setIsLoading(false);
+      }
+  };
+
   // 2. LAZY LOAD: Fetch the actual rows only when the Popover opens
   useEffect(() => {
     if (isOpen) {
-      startTransition(() => {
-        setIsLoading(true);
-      });
-      getNotificationsAction()
-        .then((res) => {
-          if (res.success && "data" in res && res.data) {
-            setNotifications(res.data.data as Notification[]);
-          }
-        })
-        .finally(() => setIsLoading(false));
+      loadNotifications();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   // 3. Mark as read using Server Action
@@ -60,6 +91,16 @@ export function NotificationBell() {
 
     // Fire the background action
     await markAsReadAction({ id });
+  };
+
+  // 4. Mark all as read
+  const handleMarkAllAsRead = async () => {
+    // Optimistic UI update
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadCount(0);
+
+    // Fire the background action
+    await markAllAsReadAction();
   };
 
   return (
@@ -87,9 +128,19 @@ export function NotificationBell() {
         <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30">
           <h4 className="font-semibold text-sm">Notifications</h4>
           {unreadCount > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {unreadCount} unread
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {unreadCount} unread
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-auto py-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                onClick={handleMarkAllAsRead}
+              >
+                Mark all as read
+              </Button>
+            </div>
           )}
         </div>
 

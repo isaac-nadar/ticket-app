@@ -8,6 +8,7 @@ import { ProfileSettings } from "@/components/profile-settings";
 import { NotificationBell } from "@/components/notification-bell";
 import { cookies } from "next/headers";
 import { LogoutButton } from "@/components/logout-button";
+import { verifyJwt } from "@/lib/jwt";
 
 // 1. Load the Corporate Font (Variable weight)
 const inter = Inter({
@@ -35,6 +36,14 @@ export default async function RootLayout({
 
   const cookieStore = await cookies();
   const token = cookieStore.get("kanban_token")?.value;
+  let userId: string | undefined;
+  if (token) {
+    try {
+      userId = verifyJwt(token).userId;
+    } catch {
+      userId = undefined;
+    }
+  }
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -53,8 +62,8 @@ export default async function RootLayout({
                   and fill in when they type!
                 */}
                 <ThemeSwitcher />
-                {token && <>
-                  <NotificationBell />
+                {token && userId && <>
+                  <NotificationBell userId={userId} />
                   <ProfileSettings />
                   <LogoutButton />
                 </>}

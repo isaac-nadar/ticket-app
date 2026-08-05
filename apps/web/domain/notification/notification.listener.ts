@@ -1,6 +1,7 @@
 import { DomainEvents } from "@/domain/events/domain-events";
 import prisma from "@/lib/db";
 import { redis } from "@/lib/redis";
+import { pusherServer } from "@/lib/pusher";
 import { notificationKeys } from "./notification.keys";
 import { eventKeys } from "@/domain/events/event.keys";
 import { webpush } from "@/lib/web-push";
@@ -17,10 +18,14 @@ export function registerNotificationListeners() {
   async function processNotification(
     event: DomainEvent,
     userId: string | undefined,
+    actorId: string | undefined,
     title: string,
     body: string,
   ) {
     if (!userId || !event.id) return;
+
+    // Never notify people about their own actions.
+    if (actorId && userId === actorId) return;
 
     // 1. Check Idempotency (Exactly-Once Processing)
     const idempotencyKey = eventKeys.processed(event.id);
@@ -34,7 +39,14 @@ export function registerNotificationListeners() {
     await NotificationRepository.create(userId, title, body);
 
     // 3. Update the Unread Count in Redis
-    await redis.incr(notificationKeys.unreadCount(userId));
+    const unreadCount = await redis.incr(notificationKeys.unreadCount(userId));
+
+    // 3b. Push the live count + notification to the bell in real time
+    await pusherServer.trigger(`user-${userId}`, "notification", {
+      count: unreadCount,
+      title,
+      body,
+    });
 
     // 4. Handle Web Push Notifications (PWA)
     const subs = await prisma.pushSubscription.findMany({ where: { userId } });
@@ -62,7 +74,8 @@ export function registerNotificationListeners() {
   DomainEvents.subscribe("CARD_MOVED", async (payload, event) => {
     await processNotification(
       event,
-      payload.userId,
+      payload.assigneeId,
+      payload.actorId,
       "Card moved",
       `Card ${payload.cardId} moved to new column`,
     );
@@ -71,7 +84,8 @@ export function registerNotificationListeners() {
   DomainEvents.subscribe("CARD_CREATED", async (payload, event) => {
     await processNotification(
       event,
-      payload.userId,
+      payload.assigneeId,
+      payload.actorId,
       "New card created",
       `Card ${payload.cardId} created`,
     );
@@ -80,9 +94,21 @@ export function registerNotificationListeners() {
   DomainEvents.subscribe("CARD_UPDATED", async (payload, event) => {
     await processNotification(
       event,
-      payload.userId,
+      payload.assigneeId,
+      payload.actorId,
       "Card Assigned/Updated",
       `You were assigned to or had an update on Card ${payload.cardId}`,
+    );
+  });
+
+  // Direct pings (e.g. @mentions) already know exactly who to notify.
+  DomainEvents.subscribe("NOTIFICATION_CREATED", async (payload, event) => {
+    await processNotification(
+      event,
+      payload.userId,
+      payload.actorId,
+      payload.title,
+      payload.body,
     );
   });
 }

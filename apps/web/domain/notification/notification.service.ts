@@ -28,7 +28,9 @@ export const NotificationService = {
   },
 
   markAllRead: async (userId: string) => {
-    return NotificationRepository.markAllAsRead(userId);
+    const result = await NotificationRepository.markAllAsRead(userId);
+    await redis.set(notificationKeys.unreadCount(userId), 0);
+    return result;
   },
 
   unreadCount: async (userId: string) => {

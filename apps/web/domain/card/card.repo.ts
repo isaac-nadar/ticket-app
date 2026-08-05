@@ -290,6 +290,6 @@ export const CardRepository = {
       return { updatedCard, notificationsToDispatch };
     });
 
-    return result.updatedCard;
+    return result;
   },
 };
