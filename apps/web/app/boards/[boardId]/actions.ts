@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import prisma from "@/lib/db";
 import { redis } from "@/lib/redis";
 import { AuthUser, getCurrentUser } from "@/lib/auth";
 import { UserService } from "@/domain/user/user.service";
@@ -10,6 +11,29 @@ import { createSafeAction } from "@/lib/safe-action";
 import { CommentService } from "@/domain/comment/comment.service";
 import { CardService } from "@/domain/card/card.service";
 import { ColumnService } from "@/domain/column/column.service";
+import { AuthzService } from "@/domain/authz/authz.service";
+import { enforceRateLimit } from "@/domain/rate-limit/rate-limit.service";
+import { IdempotencyService } from "@/domain/idempotency/idempotency.service";
+import { createHash } from "crypto";
+
+// Shared guard: ADMINs can act on any board; everyone else must be a
+// member (BoardUser) of the specific board they're trying to mutate.
+async function requireBoardAccess(
+  userId: string,
+  boardId: string,
+  role?: "ADMIN" | "USER",
+) {
+  if (role === "ADMIN") return;
+
+  const boardAccess = await BoardUserService.checkUserAccessToBoard(
+    userId,
+    boardId,
+  );
+
+  if (!boardAccess) {
+    throw new Error("Forbidden: You do not have access to this board.");
+  }
+}
 
 export async function moveCardAction(
   boardId: string,
@@ -24,8 +48,12 @@ export async function moveCardAction(
     );
 
     // Actor is derived server-side (not trusted from the client) so we can
-    // reliably skip notifying whoever is actually performing the move.
+    // reliably skip notifying whoever is actually performing the move, and
+    // so we can enforce board membership below.
     const actor = await getCurrentUser();
+    if (!actor) return { success: false, error: "Unauthorized" };
+
+    await AuthzService.requireCardAccess(actor.userId, cardId, actor.role);
 
     await CardService.reorderCard(
       boardId,
@@ -52,6 +80,12 @@ export async function moveCardAction(
 // --- ADD NEW COLUMN ---
 export async function createColumnAction(boardId: string, name: string) {
   try {
+    const actor = await getCurrentUser();
+    if (!actor) return { success: false, error: "Unauthorized" };
+
+    await requireBoardAccess(actor.userId, boardId, actor.role);
+    await enforceRateLimit(actor.userId);
+
     await ColumnService.createColumn(boardId, name);
 
     await redis.del(`board:${boardId}:data`);
@@ -72,7 +106,33 @@ export async function createCardAction(
   parentId?: string,
 ) {
   try {
-    await CardService.createCard(title, "FEATURE", columnId, parentId);
+    const actor = await getCurrentUser();
+    if (!actor) return { success: false, error: "Unauthorized" };
+
+    await requireBoardAccess(actor.userId, boardId, actor.role);
+
+    // The column must actually belong to the board the caller has access
+    // to — otherwise a member of Board A could pass a Board B columnId and
+    // inject a card there.
+    const column = await prisma.column.findFirst({
+      where: { id: columnId, boardId },
+      select: { id: true },
+    });
+    if (!column) {
+      return { success: false, error: "Column not found on this board" };
+    }
+
+    await enforceRateLimit(actor.userId);
+
+    // Collapse accidental double-submits (double-click / slow network retry)
+    // within a short window into a single card creation.
+    const idempotencyKey = createHash("sha256")
+      .update(`create-card:${actor.userId}:${columnId}:${title}:${parentId ?? ""}:${Math.floor(Date.now() / 5000)}`)
+      .digest("hex");
+
+    await IdempotencyService.execute(idempotencyKey, () =>
+      CardService.createCard(title, "FEATURE", columnId, parentId),
+    );
 
     await redis.del(`board:${boardId}:data`);
     revalidatePath(`/boards/${boardId}`);
@@ -89,9 +149,21 @@ export async function moveColumnAction(
   columnId: string,
   newPosition: number,
 ) {
-  await ColumnService.updateColumnPosition(columnId, newPosition);
-  await redis.del(`board:${boardId}:data`);
-  revalidatePath(`/boards/${boardId}`);
+  try {
+    const actor = await getCurrentUser();
+    if (!actor) return { success: false, error: "Unauthorized" };
+
+    await requireBoardAccess(actor.userId, boardId, actor.role);
+
+    await ColumnService.updateColumnPosition(columnId, newPosition);
+    await redis.del(`board:${boardId}:data`);
+    revalidatePath(`/boards/${boardId}`);
+
+    return { success: true };
+  } catch (error) {
+    console.error("[SERVER] Failed to move column:", error);
+    return { success: false, error: "Failed to move column" };
+  }
 }
 
 export const inviteUserAction = createSafeAction(
@@ -141,8 +213,13 @@ export const updateCardDetailsAction = async (
     }
 
     // Actor is derived server-side so the assignee-notification pipeline
-    // (domain/card/card.service.ts) can skip self-notifications reliably.
+    // (domain/card/card.service.ts) can skip self-notifications reliably,
+    // and so we can enforce board membership below.
     const actor = await getCurrentUser();
+    if (!actor) return { success: false, error: "Unauthorized" };
+
+    await AuthzService.requireCardAccess(actor.userId, cardId, actor.role);
+
     const updatedCard = await CardService.updateCardDetails(
       cardId,
       data,
@@ -161,7 +238,9 @@ export const updateCardDetailsAction = async (
 };
 
 export const getCardCommentsAction = createSafeAction(
-  async (cardId: string) => {
+  async (cardId: string, { user }) => {
+    await AuthzService.requireCardAccess(user.userId, cardId, user.role);
+
     const comments = await CommentService.listComments(cardId);
     return { success: true, data: comments };
   },
@@ -183,14 +262,24 @@ export const addCommentAction = createSafeAction(
     },
     { user },
   ) => {
-    await CommentService.addComment({
-      boardId,
-      cardId,
-      text,
-      userId: user.userId,
-      userName: user.name,
-      assigneeId, // Pass the name so the notification service can use it
-    });
+    await AuthzService.requireCardAccess(user.userId, cardId, user.role);
+    await enforceRateLimit(user.userId);
+
+    // Collapse accidental double-submits within a short window.
+    const idempotencyKey = createHash("sha256")
+      .update(`add-comment:${user.userId}:${cardId}:${text}:${Math.floor(Date.now() / 5000)}`)
+      .digest("hex");
+
+    await IdempotencyService.execute(idempotencyKey, () =>
+      CommentService.addComment({
+        boardId,
+        cardId,
+        text,
+        userId: user.userId,
+        userName: user.name,
+        assigneeId, // Pass the name so the notification service can use it
+      }),
+    );
 
     await redis.del(`board:${boardId}:data`);
     revalidatePath(`/boards/${boardId}`);
@@ -199,13 +288,17 @@ export const addCommentAction = createSafeAction(
   },
 );
 
-export const getCardDetailsAction = createSafeAction(async (cardId: string) => {
-  const card = await CardService.getCardDetails(cardId);
-  if (!card) {
-    throw new Error("Card not found");
-  }
-  return { success: true, data: card };
-});
+export const getCardDetailsAction = createSafeAction(
+  async (cardId: string, { user }) => {
+    await AuthzService.requireCardAccess(user.userId, cardId, user.role);
+
+    const card = await CardService.getCardDetails(cardId);
+    if (!card) {
+      throw new Error("Card not found");
+    }
+    return { success: true, data: card };
+  },
+);
 
 export const getAvailableUsersAction = createSafeAction(
   async (boardId: string, { user }) => {

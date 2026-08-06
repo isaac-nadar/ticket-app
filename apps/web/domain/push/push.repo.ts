@@ -1,8 +1,9 @@
 import prisma from "@/lib/db";
+import { PushKeys } from "./push.types";
 
 export const PushRepository = {
-  create: async (userId: string, endpoint: string, keys: string) => {
-    return prisma.notification.create({
+  create: async (userId: string, endpoint: string, keys: PushKeys) => {
+    return prisma.pushSubscription.create({
       data: {
         userId,
         endpoint,
@@ -12,7 +13,7 @@ export const PushRepository = {
   },
 
   deleteMany: async (userId: string, endpoint: string) => {
-    return prisma.notification.deleteMany({
+    return prisma.pushSubscription.deleteMany({
       where: {
         userId,
         endpoint,

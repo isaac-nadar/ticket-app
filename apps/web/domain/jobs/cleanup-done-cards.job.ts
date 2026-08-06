@@ -1,5 +1,6 @@
 import { CardRepository } from "@/domain/card/card.repo";
 import { AuditRepository } from "@/domain/audit/audit.repo";
+import { deleteS3Objects } from "@/domain/storage/storage.service";
 import { Card } from "../card/card.types";
 
 const DAYS = 30;
@@ -12,19 +13,16 @@ export async function cleanupDoneCards() {
     return;
   }
 
-  //s3 cleaup
-  // const s3KeysToDelete = staleCards.flatMap((card: Card) =>
-  //   card.attachments.map((att) => att.fileName),
-  // );
+  // S3 cleanup — this is a hard delete (unlike CardService.deleteCard's
+  // soft delete), so the attachment rows are gone for good once
+  // deleteManyByIds runs below. Clean up the physical files first.
+  const fileUrlsToDelete = staleCards.flatMap((card: Card) =>
+    card.attachments.map((att) => att.fileUrl),
+  );
 
-  // if (s3KeysToDelete.length > 0) {
-  //   await s3Client.send(
-  //     new DeleteObjectsCommand({
-  //       Bucket: process.env.S3_BUCKET_NAME,
-  //       Delete: { Objects: s3KeysToDelete.map((Key) => ({ Key })) },
-  //     }),
-  //   );
-  // }
+  if (fileUrlsToDelete.length > 0) {
+    await deleteS3Objects(fileUrlsToDelete);
+  }
 
   const ids = staleCards.map((c: Card) => c.id);
 

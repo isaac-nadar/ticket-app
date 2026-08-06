@@ -42,7 +42,19 @@ export const DomainEvents = {
 
     const handlers = subscribers[event.type] || [];
     for (const handler of handlers) {
-      await handler(event.payload, event);
+      // Isolate each subscriber: one listener's failure (e.g. the
+      // notification pipeline hitting a DB/Redis error) must not stop
+      // sibling listeners (e.g. the realtime board broadcast) from running,
+      // and must not bubble up to fail the action that triggered the
+      // dispatch — the underlying mutation already succeeded by this point.
+      try {
+        await handler(event.payload, event);
+      } catch (err) {
+        console.error(
+          `🚨 [DomainEvents] Handler failed for "${event.type}":`,
+          err instanceof Error ? err.message : err,
+        );
+      }
     }
   },
 };

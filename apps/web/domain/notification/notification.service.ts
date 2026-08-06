@@ -1,3 +1,4 @@
+import prisma from "@/lib/db";
 import { NotificationRepository } from "./notification.repo";
 import { redis } from "@/lib/redis";
 import { notificationKeys } from "./notification.keys";

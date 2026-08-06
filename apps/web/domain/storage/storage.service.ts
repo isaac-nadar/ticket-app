@@ -1,4 +1,8 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectsCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import crypto from "crypto";
 
@@ -10,6 +14,39 @@ const s3Client = new S3Client({
     secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
   },
 });
+
+// The S3 object key is never stored on Attachment directly — only the
+// public fileUrl is (which we constructed from the key in the first
+// place). Reverse that here rather than guessing from the filename.
+export function extractS3KeyFromUrl(fileUrl: string): string | null {
+  try {
+    const url = new URL(fileUrl);
+    return decodeURIComponent(url.pathname.replace(/^\/+/, ""));
+  } catch {
+    return null;
+  }
+}
+
+// S3's DeleteObjects API caps out at 1000 keys per request.
+const S3_BATCH_LIMIT = 1000;
+
+export async function deleteS3Objects(fileUrls: string[]): Promise<void> {
+  const keys = fileUrls
+    .map(extractS3KeyFromUrl)
+    .filter((key): key is string => Boolean(key));
+
+  if (keys.length === 0) return;
+
+  for (let i = 0; i < keys.length; i += S3_BATCH_LIMIT) {
+    const batch = keys.slice(i, i + S3_BATCH_LIMIT);
+    await s3Client.send(
+      new DeleteObjectsCommand({
+        Bucket: process.env.S3_BUCKET_NAME!,
+        Delete: { Objects: batch.map((Key) => ({ Key })) },
+      }),
+    );
+  }
+}
 
 export const StorageService = {
   generateUploadUrl: async (

@@ -9,6 +9,7 @@
 import { registerAuditListeners } from "./audit/audit.listener";
 import { registerRealtimeListeners } from "./events/handlers/realtime.handler";
 import { registerNotificationListeners } from "./notification/notification.listener";
+import { registerStorageListeners } from "./storage/storage.listener";
 
 // The Lock
 let isBootstrapped = false;
@@ -23,6 +24,7 @@ export function bootstrap() {
   registerAuditListeners();
   registerNotificationListeners();
   registerRealtimeListeners();
+  registerStorageListeners();
 
   // Lock the door behind us
   isBootstrapped = true;

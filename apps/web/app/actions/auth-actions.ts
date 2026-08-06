@@ -6,6 +6,7 @@ import bcrypt from "bcrypt";
 import { signJwt } from "@/lib/jwt";
 import { UserService } from "@/domain/user/user.service";
 import { revalidatePath } from "next/cache";
+import { enforceRateLimit } from "@/domain/rate-limit/rate-limit.service";
 
 export async function logoutAction() {
   const cookieStore = await cookies();
@@ -15,6 +16,17 @@ export async function logoutAction() {
 
 export async function loginAction(data: { email: string; password: string }) {
   try {
+    // 0. Throttle brute-force attempts against this email — checked before
+    // the DB lookup so it protects against both valid and invalid emails.
+    try {
+      await enforceRateLimit(`login:${data.email.trim().toLowerCase()}`);
+    } catch {
+      return {
+        success: false,
+        error: "Too many login attempts. Please try again in a minute.",
+      };
+    }
+
     // 1. Find User
     const user = await UserService.checkUser(data.email);
     if (!user) {

@@ -2,12 +2,17 @@
 
 import { createSafeAction } from "@/lib/safe-action";
 import { StorageService } from "@/domain/storage/storage.service";
+import { AuthzService } from "@/domain/authz/authz.service";
+import { enforceRateLimit } from "@/domain/rate-limit/rate-limit.service";
 import prisma from "@/lib/db";
 import { DomainEvents } from "@/domain/events/domain-events";
+import { randomUUID } from "crypto";
 
 // 1. Ask AWS for a Presigned URL
 export const getUploadUrlAction = createSafeAction(
   async (data: { fileName: string; fileType: string }, { user }) => {
+    await enforceRateLimit(user.userId);
+
     const credentials = await StorageService.generateUploadUrl(
       data.fileName,
       data.fileType,
@@ -30,6 +35,8 @@ export const saveAttachmentAction = createSafeAction(
     },
     { user },
   ) => {
+    await AuthzService.requireCardAccess(user.userId, data.cardId, user.role);
+
     const attachment = await prisma.attachment.create({
       data: {
         cardId: data.cardId,
@@ -41,13 +48,36 @@ export const saveAttachmentAction = createSafeAction(
       },
     });
 
-    // Optional: Broadcast this so the Real-Time Pusher hook updates the UI for everyone!
+    // Notify the card's current assignee that a file was attached
+    // (never the uploader themselves).
+    const card = await prisma.card.findUnique({
+      where: { id: data.cardId },
+      select: { assigneeId: true },
+    });
+
+    if (card?.assigneeId && card.assigneeId !== user.userId) {
+      await DomainEvents.dispatch({
+        id: randomUUID(),
+        type: "NOTIFICATION_CREATED",
+        payload: {
+          userId: card.assigneeId,
+          actorId: user.userId,
+          cardId: data.cardId,
+          title: "New attachment",
+          body: `${user.name ?? "Someone"} attached a file to a card you're assigned to`,
+        },
+      });
+    }
+
+    // Broadcast so the Real-Time Pusher hook updates the board for everyone!
     await DomainEvents.dispatch({
+      id: randomUUID(),
       type: "CARD_UPDATED",
       payload: {
         boardId: data.boardId,
         cardId: data.cardId,
-        userId: user.userId,
+        actorId: user.userId,
+        changes: {},
       },
     });
 

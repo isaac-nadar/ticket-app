@@ -1,22 +1,21 @@
 import { DomainEvents } from "@/domain/events/domain-events";
+import prisma from "@/lib/db";
+import { deleteS3Objects } from "./storage.service";
 
 // domain/storage/storage.listener.ts
-DomainEvents.subscribe("CARD_DELETED", async (payload) => {
-  // 1. Fetch all attachments for this card
-  const attachments = await prisma.attachment.findMany({
-    where: { cardId: payload.cardId },
+export function registerStorageListeners() {
+  DomainEvents.subscribe("CARD_DELETED", async (payload) => {
+    // Note: CardService.deleteCard soft-deletes (sets deletedAt) — there's
+    // no restore flow, so from the user's perspective the card is gone for
+    // good and its attachments should stop costing storage. The Attachment
+    // rows themselves stay put (no cascade fires on a soft delete); only
+    // the physical S3 objects are cleaned up here.
+    const attachments = await prisma.attachment.findMany({
+      where: { cardId: payload.cardId },
+    });
+
+    if (attachments.length === 0) return;
+
+    await deleteS3Objects(attachments.map((a: { fileUrl: string }) => a.fileUrl));
   });
-
-  // 2. Tell AWS S3 to delete the physical files
-  //   for (const file of attachments) {
-  //     await s3Client.send(
-  //       new DeleteObjectCommand({
-  //         Bucket: process.env.S3_BUCKET_NAME,
-  //         Key: file.fileName, // The unique key in S3
-  //       }),
-  //     );
-  //   }
-
-  // (Note: Prisma's onDelete: Cascade will automatically handle deleting
-  // the database rows when the Card is deleted, so S3 is all we care about here!)
-});
+}

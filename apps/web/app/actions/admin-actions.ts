@@ -4,6 +4,20 @@ import { createSafeAction } from "@/lib/safe-action";
 import { UserService } from "@/domain/user/user.service";
 import bcrypt from "bcrypt";
 import { revalidatePath } from "next/cache";
+import { randomInt } from "crypto";
+
+// A fresh, unpredictable temp password per provisioned employee — a static
+// hardcoded default would be a known credential for every new account
+// until (if ever) the employee changes it.
+function generateTempPassword(): string {
+  const chars =
+    "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
+  let password = "";
+  for (let i = 0; i < 14; i++) {
+    password += chars[randomInt(chars.length)];
+  }
+  return password;
+}
 
 // Fetch all users for the admin table
 export const getAllUsersAction = createSafeAction(async (_, { user }) => {
@@ -47,8 +61,8 @@ export const provisionEmployeeAction = createSafeAction(
     const cleanName = data.name.trim();
     const cleanEmail = data.email.trim().toLowerCase();
 
-    // Generate a default temporary password for the employee
-    const tempPassword = "TicketApp123!";
+    // Generate a fresh, random temporary password for the employee
+    const tempPassword = generateTempPassword();
     const hash = await bcrypt.hash(tempPassword, 10);
 
     const newUser = await UserService.createUser({

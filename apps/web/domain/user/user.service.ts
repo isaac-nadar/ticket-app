@@ -1,4 +1,5 @@
 // domain/user/user.service.ts
+import prisma from "@/lib/db";
 import { UserRepository } from "./user.repo";
 import bcrypt from "bcrypt";
 // import { EmailService } from "../email/email.service";

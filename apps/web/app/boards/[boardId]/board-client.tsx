@@ -175,15 +175,26 @@ export function BoardClient({
       const newIndex = board.columns.findIndex((c) => c.id === over.id);
 
       if (oldIndex !== newIndex) {
+        const previousBoard = board;
         const newColumns = arrayMove(board.columns, oldIndex, newIndex);
         setBoard({ ...board, columns: newColumns });
         startTransition(() => {
-          moveColumnAction(board.id, active.id as string, newIndex);
+          moveColumnAction(board.id, active.id as string, newIndex).then(
+            (res) => {
+              // Server rejected the move (e.g. lost board access) — the
+              // optimistic update above was wrong, so put it back.
+              if (!res?.success) {
+                console.error("[CLIENT] Column move rejected:", res?.error);
+                setBoard(previousBoard);
+              }
+            },
+          );
         });
       }
       return;
     }
 
+    const previousBoard = board;
     const newColumns = [...board.columns];
 
     if (over && active.id !== over.id) {
@@ -229,7 +240,17 @@ export function BoardClient({
           targetColumnId,
           targetPosition,
           active.data.current?.assigneeId,
-        );
+        ).then((res) => {
+          // Server rejected the move (e.g. lost board access, card no
+          // longer exists) — the optimistic update above was wrong, so put
+          // it back and resync from the server instead of leaving the UI
+          // showing a move that never actually happened.
+          if (!res?.success) {
+            console.error("[CLIENT] Card move rejected:", res?.error);
+            setBoard(previousBoard);
+            router.refresh();
+          }
+        });
       }
     });
   };
