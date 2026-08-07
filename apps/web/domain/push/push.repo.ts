@@ -20,4 +20,12 @@ export const PushRepository = {
       },
     });
   },
+
+  findByUserId: async (userId: string) => {
+    return prisma.pushSubscription.findMany({ where: { userId } });
+  },
+
+  deleteById: async (id: string) => {
+    return prisma.pushSubscription.delete({ where: { id } });
+  },
 };

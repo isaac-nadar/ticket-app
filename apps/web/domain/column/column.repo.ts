@@ -4,6 +4,13 @@ import prisma from "@/lib/db";
 type Tx = typeof prisma;
 
 export const ColumnRepository = {
+  findByIdAndBoard: async (columnId: string, boardId: string) => {
+    return prisma.column.findFirst({
+      where: { id: columnId, boardId },
+      select: { id: true },
+    });
+  },
+
   create: async (boardId: string, name: string) => {
     // 1. Find the highest position to put the new column at the end
     const lastCol = await prisma.column.findFirst({

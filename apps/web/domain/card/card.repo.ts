@@ -95,6 +95,14 @@ export const CardRepository = {
     });
   },
 
+  findAssigneeId: async (cardId: string): Promise<string | null> => {
+    const card = await prisma.card.findUnique({
+      where: { id: cardId },
+      select: { assigneeId: true },
+    });
+    return card?.assigneeId ?? null;
+  },
+
   findByBoard: async (boardId: string) => {
     return prisma.card.findMany({
       where: {

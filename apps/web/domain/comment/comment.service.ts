@@ -1,5 +1,5 @@
-import prisma from "@/lib/db";
 import { CommentRepository } from "./comment.repo";
+import { CardService } from "@/domain/card/card.service";
 import { DomainEvents } from "@/domain/events/domain-events";
 import { randomUUID } from "crypto";
 
@@ -25,17 +25,14 @@ export const CommentService = {
 
     // 2. Notify the card's CURRENT assignee (read fresh from the DB, not
     // trusted from the client), skipping self-notification.
-    const card = await prisma.card.findUnique({
-      where: { id: params.cardId },
-      select: { assigneeId: true },
-    });
+    const assigneeId = await CardService.getAssigneeId(params.cardId);
 
-    if (card?.assigneeId && card.assigneeId !== params.userId) {
+    if (assigneeId && assigneeId !== params.userId) {
       await DomainEvents.dispatch({
         id: randomUUID(),
         type: "NOTIFICATION_CREATED",
         payload: {
-          userId: card.assigneeId,
+          userId: assigneeId,
           actorId: params.userId,
           cardId: params.cardId,
           title: "New comment",

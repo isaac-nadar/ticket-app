@@ -1,6 +1,5 @@
 import { DomainEvents } from "@/domain/events/domain-events";
-import prisma from "@/lib/db";
-import { deleteS3Objects } from "./storage.service";
+import { StorageService, deleteS3Objects } from "./storage.service";
 
 // domain/storage/storage.listener.ts
 export function registerStorageListeners() {
@@ -10,9 +9,9 @@ export function registerStorageListeners() {
     // good and its attachments should stop costing storage. The Attachment
     // rows themselves stay put (no cascade fires on a soft delete); only
     // the physical S3 objects are cleaned up here.
-    const attachments = await prisma.attachment.findMany({
-      where: { cardId: payload.cardId },
-    });
+    const attachments = await StorageService.getAttachmentsForCard(
+      payload.cardId,
+    );
 
     if (attachments.length === 0) return;
 

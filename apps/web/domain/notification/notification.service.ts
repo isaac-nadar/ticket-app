@@ -1,13 +1,15 @@
-import prisma from "@/lib/db";
 import { NotificationRepository } from "./notification.repo";
 import { redis } from "@/lib/redis";
 import { notificationKeys } from "./notification.keys";
 
 export const NotificationService = {
+  // Used by the domain event listener — keeps prisma out of listener code.
+  create: async (userId: string, title: string, body?: string) => {
+    return NotificationRepository.create(userId, title, body);
+  },
+
   markRead: async (notificationId: string, userId: string) => {
-    const notif = await prisma.notification.findUnique({
-      where: { id: notificationId },
-    });
+    const notif = await NotificationRepository.findById(notificationId);
 
     // already read → do nothing
     if (!notif || notif.read) {

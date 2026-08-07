@@ -17,4 +17,14 @@ export const PushService = {
   ) => {
     return PushRepository.deleteMany(userId, endpoint);
   },
+
+  // Used by the notification listener to fan out web-push, and to prune
+  // dead subscriptions — keeps prisma out of listener code.
+  getUserSubscriptions: async (userId: string) => {
+    return PushRepository.findByUserId(userId);
+  },
+
+  deleteSubscription: async (id: string) => {
+    return PushRepository.deleteById(id);
+  },
 };

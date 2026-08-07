@@ -4,7 +4,10 @@ import {
   DeleteObjectsCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import crypto from "crypto";
+import crypto, { randomUUID } from "crypto";
+import { StorageRepository } from "./storage.repo";
+import { CardService } from "@/domain/card/card.service";
+import { DomainEvents } from "@/domain/events/domain-events";
 
 // Initialize S3 Client outside the function so it caches across serverless cold starts
 const s3Client = new S3Client({
@@ -73,5 +76,62 @@ export const StorageService = {
     const fileUrl = `https://${process.env.S3_BUCKET_NAME}.s3.${process.env.S3_REGION}.amazonaws.com/${s3Key}`;
 
     return { uploadUrl, fileUrl, s3Key };
+  },
+
+  getAttachmentsForCard: async (cardId: string) => {
+    return StorageRepository.findByCardId(cardId);
+  },
+
+  saveAttachment: async (
+    data: {
+      boardId: string;
+      cardId: string;
+      fileName: string;
+      fileUrl: string;
+      fileType: string;
+      sizeBytes: number;
+    },
+    actorId: string,
+    actorName?: string,
+  ) => {
+    const attachment = await StorageRepository.createAttachment({
+      cardId: data.cardId,
+      userId: actorId,
+      fileName: data.fileName,
+      fileUrl: data.fileUrl,
+      fileType: data.fileType,
+      sizeBytes: data.sizeBytes,
+    });
+
+    // Notify the card's current assignee (never the uploader themselves).
+    const assigneeId = await CardService.getAssigneeId(data.cardId);
+
+    if (assigneeId && assigneeId !== actorId) {
+      await DomainEvents.dispatch({
+        id: randomUUID(),
+        type: "NOTIFICATION_CREATED",
+        payload: {
+          userId: assigneeId,
+          actorId,
+          cardId: data.cardId,
+          title: "New attachment",
+          body: `${actorName ?? "Someone"} attached a file to a card you're assigned to`,
+        },
+      });
+    }
+
+    // Broadcast so the Real-Time Pusher hook updates the board for everyone!
+    await DomainEvents.dispatch({
+      id: randomUUID(),
+      type: "CARD_UPDATED",
+      payload: {
+        boardId: data.boardId,
+        cardId: data.cardId,
+        actorId,
+        changes: {},
+      },
+    });
+
+    return attachment;
   },
 };

@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import prisma from "@/lib/db";
 import { redis } from "@/lib/redis";
 import { AuthUser, getCurrentUser } from "@/lib/auth";
 import { UserService } from "@/domain/user/user.service";
@@ -114,11 +113,11 @@ export async function createCardAction(
     // The column must actually belong to the board the caller has access
     // to — otherwise a member of Board A could pass a Board B columnId and
     // inject a card there.
-    const column = await prisma.column.findFirst({
-      where: { id: columnId, boardId },
-      select: { id: true },
-    });
-    if (!column) {
+    const columnBelongsToBoard = await ColumnService.belongsToBoard(
+      columnId,
+      boardId,
+    );
+    if (!columnBelongsToBoard) {
       return { success: false, error: "Column not found on this board" };
     }
 
@@ -203,21 +202,14 @@ export const updateCardDetailsAction = async (
   }
 ) => {
   try {
-    const existingCard = await prisma.card.findUnique({
-      where: { id: cardId },
-      select: { assigneeId: true, title: true }
-    });
-
-    if (!existingCard) {
-      return { success: false, error: "Card not found" };
-    }
-
     // Actor is derived server-side so the assignee-notification pipeline
     // (domain/card/card.service.ts) can skip self-notifications reliably,
     // and so we can enforce board membership below.
     const actor = await getCurrentUser();
     if (!actor) return { success: false, error: "Unauthorized" };
 
+    // Also doubles as the "card exists" check — a nonexistent cardId can't
+    // be accessible to anyone, so requireCardAccess rejects it too.
     await AuthzService.requireCardAccess(actor.userId, cardId, actor.role);
 
     const updatedCard = await CardService.updateCardDetails(

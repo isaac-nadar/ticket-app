@@ -1,5 +1,4 @@
 import { DomainEvents } from "@/domain/events/domain-events";
-import prisma from "@/lib/db";
 import { redis } from "@/lib/redis";
 import { pusherServer } from "@/lib/pusher";
 import { notificationKeys } from "./notification.keys";
@@ -10,7 +9,8 @@ import {
   isWebPushGoneError,
   isWebPushNotFoundError,
 } from "../push/push.errors";
-import { NotificationRepository } from "./notification.repo";
+import { NotificationService } from "./notification.service";
+import { PushService } from "../push/push.service";
 import { DomainEvent } from "@/domain/events/events.types";
 
 export function registerNotificationListeners() {
@@ -36,7 +36,7 @@ export function registerNotificationListeners() {
     await redis.set(idempotencyKey, "1", "EX", 60 * 60);
 
     // 2. Save to PostgreSQL Database
-    await NotificationRepository.create(userId, title, body);
+    await NotificationService.create(userId, title, body);
 
     // 3. Update the Unread Count in Redis
     const unreadCount = await redis.incr(notificationKeys.unreadCount(userId));
@@ -49,7 +49,7 @@ export function registerNotificationListeners() {
     });
 
     // 4. Handle Web Push Notifications (PWA)
-    const subs = await prisma.pushSubscription.findMany({ where: { userId } });
+    const subs = await PushService.getUserSubscriptions(userId);
     for (const sub of subs) {
       if (!isPushKeys(sub.keys)) continue;
 
@@ -63,7 +63,7 @@ export function registerNotificationListeners() {
         console.error("🚨 [Web Push Failed]:", message);
         if (isWebPushGoneError(err) || isWebPushNotFoundError(err)) {
           // Clean up dead subscriptions
-          await prisma.pushSubscription.delete({ where: { id: sub.id } });
+          await PushService.deleteSubscription(sub.id);
         }
       }
     }

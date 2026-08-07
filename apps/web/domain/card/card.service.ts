@@ -34,6 +34,18 @@ export const CardService = {
     return CardRepository.findByBoard(boardId);
   },
 
+  getAssigneeId: async (cardId: string) => {
+    return CardRepository.findAssigneeId(cardId);
+  },
+
+  findDoneOlderThan: async (days: number) => {
+    return CardRepository.findDoneOlderThan(days);
+  },
+
+  bulkDelete: async (ids: string[]) => {
+    return CardRepository.deleteManyByIds(ids);
+  },
+
   reorderCard: async (
     boardId: string,
     cardId: string,

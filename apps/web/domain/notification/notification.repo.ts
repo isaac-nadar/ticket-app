@@ -1,18 +1,19 @@
 import prisma from "@/lib/db";
 
 export const NotificationRepository = {
-  create: async (
-    userId: string,
-    type: string,
-    title: string,
-    body?: string,
-  ) => {
+  create: async (userId: string, title: string, body?: string) => {
     return prisma.notification.create({
       data: {
         userId,
-        title: type,
-        body: title,
+        title,
+        body,
       },
+    });
+  },
+
+  findById: async (notificationId: string) => {
+    return prisma.notification.findUnique({
+      where: { id: notificationId },
     });
   },
 

@@ -1,5 +1,4 @@
 // domain/user/user.service.ts
-import prisma from "@/lib/db";
 import { UserRepository } from "./user.repo";
 import bcrypt from "bcrypt";
 // import { EmailService } from "../email/email.service";
@@ -46,7 +45,7 @@ export const UserService = {
   },
 
   changePassword: async (userId: string, oldPass: string, newPass: string) => {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await UserRepository.findByIdWithPassword(userId);
     if (!user) throw new Error("User not found");
 
     const isValid = await bcrypt.compare(oldPass, user.password);

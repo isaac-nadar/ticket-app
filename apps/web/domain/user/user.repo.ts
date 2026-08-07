@@ -15,6 +15,15 @@ export const UserRepository = {
     });
   },
 
+  // Includes the password hash — only for internal use by flows that need
+  // to verify it (e.g. change-password). Never expose this beyond the
+  // service layer.
+  findByIdWithPassword: async (userId: string) => {
+    return prisma.user.findUnique({
+      where: { id: userId },
+    });
+  },
+
   checkDuplicate: async (data: {
     email: string;
     name: string;
