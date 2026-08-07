@@ -104,18 +104,18 @@ export const StorageService = {
     });
 
     // Notify the card's current assignee (never the uploader themselves).
-    const assigneeId = await CardService.getAssigneeId(data.cardId);
+    const cardSummary = await CardService.getSummary(data.cardId);
 
-    if (assigneeId && assigneeId !== actorId) {
+    if (cardSummary?.assigneeId && cardSummary.assigneeId !== actorId) {
       await DomainEvents.dispatch({
         id: randomUUID(),
         type: "NOTIFICATION_CREATED",
         payload: {
-          userId: assigneeId,
+          userId: cardSummary.assigneeId,
           actorId,
           cardId: data.cardId,
           title: "New attachment",
-          body: `${actorName ?? "Someone"} attached a file to a card you're assigned to`,
+          body: `${actorName ?? "Someone"} attached "${data.fileName}" to "${cardSummary.title}"`,
         },
       });
     }

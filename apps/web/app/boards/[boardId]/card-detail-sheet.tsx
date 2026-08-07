@@ -37,13 +37,10 @@ import { addCommentAction } from "./actions";
 import { formatDistanceToNow } from "date-fns";
 import { FileUploadZone } from "@/components/file-upload-zone";
 
-import { updateCardPriorityAction } from "./actions";
 import { Flag, AlertCircle, ArrowDown, Minus, ArrowUp } from "lucide-react";
 import { createCardAction } from "./actions";
 
 import { RichTextEditor } from "@/components/rich-text-editor";
-// import your server action to update the description...
-import { updateCardDescriptionAction } from "./actions";
 import { User } from "@/domain/user/user.types";
 
 export function CardDetailSheet({ board }: { board: Board }) {
@@ -54,11 +51,16 @@ export function CardDetailSheet({ board }: { board: Board }) {
   const activeCardId: string = searchParams.get("card") || "";
   const isOpen = !!activeCardId;
 
-  // Local state
+  // Local draft state — nothing here hits the server until "Save Card
+  // Details" is clicked. A single click persists title/type/assignee/
+  // priority/description together and fires exactly one notification.
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [assigneeId, setAssigneeId] = useState<string>("unassigned");
   const [type, setType] = useState<"BUG" | "FEATURE">("FEATURE");
+  const [priority, setPriority] = useState<
+    "LOW" | "MEDIUM" | "HIGH" | "URGENT"
+  >("MEDIUM");
   const [card, setCard] = useState<Card | null>(null);
   const [isPending, startRequest] = useTransition();
   const [comments, setComments] = useState<Comment[]>([]);
@@ -69,9 +71,6 @@ export function CardDetailSheet({ board }: { board: Board }) {
 
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [isPendingSubtask, startSubtaskTransition] = useTransition();
-
-  // const [description, setDescription] = useState(card.description || "");
-  const [isSavingDesc, startDescTransition] = useTransition();
 
   useEffect(() => {
     if (activeCardId && board) {
@@ -84,6 +83,7 @@ export function CardDetailSheet({ board }: { board: Board }) {
             setTitle(foundCard.title);
             setAssigneeId(foundCard.assigneeId || "unassigned");
             setType(foundCard.type || "FEATURE");
+            setPriority(foundCard.priority || "MEDIUM");
           });
           break;
         }
@@ -136,14 +136,8 @@ export function CardDetailSheet({ board }: { board: Board }) {
   };
 
   const handlePriorityChange = (newPriority: string) => {
-    if (!card) return;
-    startTransition(async () => {
-      await updateCardPriorityAction({
-        cardId: card.id,
-        boardId: board.id,
-        priority: newPriority as "LOW" | "MEDIUM" | "HIGH" | "URGENT",
-      });
-    });
+    // Draft-only — persisted together with everything else on Save.
+    setPriority(newPriority as "LOW" | "MEDIUM" | "HIGH" | "URGENT");
   };
 
   const handleSave = () => {
@@ -157,6 +151,7 @@ export function CardDetailSheet({ board }: { board: Board }) {
         type,
         description,
         assigneeId: parsedAssignee,
+        priority,
       });
 
       handleClose(); // Close the sheet after saving
@@ -178,15 +173,9 @@ export function CardDetailSheet({ board }: { board: Board }) {
     });
   };
 
-  const handleSaveDescription = (newDesc: string) => {
+  const handleDescriptionChange = (newDesc: string) => {
+    // Draft-only — persisted together with everything else on Save.
     setDescription(newDesc);
-    startDescTransition(async () => {
-      await updateCardDescriptionAction({
-        cardId: activeCardId || "",
-        boardId: board.id,
-        description: newDesc,
-      });
-    });
   };
 
   return (
@@ -268,7 +257,7 @@ export function CardDetailSheet({ board }: { board: Board }) {
                   Priority
                 </span>
                 <Select
-                  value={card?.priority}
+                  value={priority}
                   onValueChange={handlePriorityChange}
                   disabled={isTransitionPending}
                 >
@@ -370,17 +359,12 @@ export function CardDetailSheet({ board }: { board: Board }) {
               </h3>
               <RichTextEditor
                 content={description}
-                onChange={handleSaveDescription}
+                onChange={handleDescriptionChange}
                 users={board.users.map((bu: BoardUser) => ({
                   id: bu.id,
                   name: bu.user.name,
                 }))}
               />
-              {isSavingDesc && (
-                <span className="text-[10px] text-muted-foreground ml-2">
-                  Saving...
-                </span>
-              )}
             </div>
 
             <div className="mt-8 flex flex-col gap-3">

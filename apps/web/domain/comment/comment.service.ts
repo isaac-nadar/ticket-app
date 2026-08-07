@@ -25,18 +25,21 @@ export const CommentService = {
 
     // 2. Notify the card's CURRENT assignee (read fresh from the DB, not
     // trusted from the client), skipping self-notification.
-    const assigneeId = await CardService.getAssigneeId(params.cardId);
+    const cardSummary = await CardService.getSummary(params.cardId);
 
-    if (assigneeId && assigneeId !== params.userId) {
+    if (
+      cardSummary?.assigneeId &&
+      cardSummary.assigneeId !== params.userId
+    ) {
       await DomainEvents.dispatch({
         id: randomUUID(),
         type: "NOTIFICATION_CREATED",
         payload: {
-          userId: assigneeId,
+          userId: cardSummary.assigneeId,
           actorId: params.userId,
           cardId: params.cardId,
           title: "New comment",
-          body: `${params.userName ?? "Someone"} commented on a card you're assigned to`,
+          body: `${params.userName ?? "Someone"} commented on "${cardSummary.title}"`,
         },
       });
     }

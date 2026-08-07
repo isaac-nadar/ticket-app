@@ -18,12 +18,12 @@ import {
   markAsReadAction,
   markAllAsReadAction,
 } from "@/app/actions/notification-actions";
-import { Notification } from "@/domain/notification/notification.type";
+import type { Notification as AppNotification } from "@/domain/notification/notification.type";
 import { pusherClient } from "@/lib/pusher-client";
 
 export function NotificationBell({ userId }: { userId: string }) {
   const [unreadCount, setUnreadCount] = useState(0);
-  const [notifications, setNotifications] = useState<Notification[] | []>([]);
+  const [notifications, setNotifications] = useState<AppNotification[] | []>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -43,12 +43,27 @@ export function NotificationBell({ userId }: { userId: string }) {
 
     const channelName = `user-${userId}`;
     const channel = pusherClient.subscribe(channelName);
-    channel.bind("notification", (data: { count: number }) => {
-      setUnreadCount(data.count);
-      if (isOpen) {
-        loadNotifications();
-      }
-    });
+    channel.bind(
+      "notification",
+      (data: { count: number; title: string; body: string }) => {
+        setUnreadCount(data.count);
+        if (isOpen) {
+          loadNotifications();
+        }
+
+        // Instant desktop popup for this real-time event — only while the
+        // tab isn't focused, since the badge above already covers "looking
+        // at it right now". This is on top of the true Web Push path
+        // (PushNotificationToggle), which also fires when no tab is open.
+        if (
+          typeof Notification !== "undefined" &&
+          Notification.permission === "granted" &&
+          document.hidden
+        ) {
+          new Notification(data.title, { body: data.body });
+        }
+      },
+    );
 
     return () => {
       if (pusherClient) {
@@ -66,7 +81,7 @@ export function NotificationBell({ userId }: { userId: string }) {
     try {
           const res = await getNotificationsAction();
           if (res.success && "data" in res && res.data) {
-              setNotifications(res.data.data as Notification[]);
+              setNotifications(res.data.data as AppNotification[]);
           }
       } finally {
           return setIsLoading(false);
@@ -154,7 +169,7 @@ export function NotificationBell({ userId }: { userId: string }) {
               You&apos;re all caught up!
             </div>
           ) : (
-            notifications.map((notif: Notification) => (
+            notifications.map((notif: AppNotification) => (
               <div
                 key={notif.id}
                 className={`flex gap-3 p-4 border-b border-border/50 transition-colors ${

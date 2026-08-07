@@ -76,8 +76,8 @@ export function registerNotificationListeners() {
       event,
       payload.assigneeId,
       payload.actorId,
-      "Card moved",
-      `Card ${payload.cardId} moved to new column`,
+      payload.notificationTitle ?? "Card moved",
+      payload.notificationBody ?? `Card ${payload.cardId} moved to new column`,
     );
   });
 
@@ -96,8 +96,8 @@ export function registerNotificationListeners() {
       event,
       payload.assigneeId,
       payload.actorId,
-      "Card Assigned/Updated",
-      `You were assigned to or had an update on Card ${payload.cardId}`,
+      payload.notificationTitle ?? "Card updated",
+      payload.notificationBody ?? `Card ${payload.cardId} was updated`,
     );
   });
 

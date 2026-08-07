@@ -34,8 +34,12 @@ export const CardService = {
     return CardRepository.findByBoard(boardId);
   },
 
-  getAssigneeId: async (cardId: string) => {
-    return CardRepository.findAssigneeId(cardId);
+  // Lightweight lookup for other domains (comments, attachments) that need
+  // to know who to notify and want the card's title for the message.
+  getSummary: async (cardId: string) => {
+    const card = await CardRepository.findById(cardId);
+    if (!card) return null;
+    return { title: card.title, assigneeId: card.assigneeId };
   },
 
   findDoneOlderThan: async (days: number) => {
@@ -58,11 +62,10 @@ export const CardService = {
       throw new Error("Invalid target position");
     }
 
-    const card = await CardRepository.reorder(
+    const { updatedCard, targetColumnName } = await CardRepository.reorder(
       cardId,
       targetColumnId,
       targetPosition,
-      // userId,
     );
 
     await DomainEvents.dispatch({
@@ -75,34 +78,97 @@ export const CardService = {
         targetPosition,
         assigneeId,
         actorId,
+        notificationTitle: "Card moved",
+        notificationBody: `"${updatedCard.title}" moved to ${targetColumnName}`,
       },
     });
-    return card;
+    return updatedCard;
   },
 
+  // Single entry point for the "Save Card Details" flow (title, type,
+  // assignee, priority, description all land here together). Diffs against
+  // the pre-save card so exactly one, specific notification goes out per
+  // Save click — never one per field, never a generic "something changed".
   async updateCardDetails(
     cardId: string,
     data: UpdateCardPayload,
     boardId?: string,
     actorId?: string,
+    actorName?: string,
   ) {
     if (!cardId) throw new Error("cardId is required");
 
-    const updatedCard = await CardRepository.update(cardId, data);
+    const oldCard = await CardRepository.findById(cardId);
+    if (!oldCard) throw new Error("Card not found");
 
-    // Use your custom DomainEvents to dispatch the new event
-    await DomainEvents.dispatch({
-      id: randomUUID(),
-      type: "CARD_UPDATED",
-      payload: {
-        boardId: boardId ?? "",
-        cardId,
-        changes: data,
-        // The card's CURRENT assignee (not just when assigneeId is part of this update)
-        assigneeId: updatedCard.assigneeId ?? undefined,
-        actorId,
-      },
-    });
+    const { updatedCard, notificationsToDispatch } = await CardRepository.update(
+      cardId,
+      data,
+      actorId,
+      actorName,
+    );
+
+    const changeDescriptions: string[] = [];
+    const isNewAssignment =
+      data.assigneeId !== undefined &&
+      data.assigneeId !== oldCard.assigneeId &&
+      !!data.assigneeId;
+
+    if (data.assigneeId !== undefined && data.assigneeId !== oldCard.assigneeId) {
+      changeDescriptions.push(data.assigneeId ? "assigned to you" : "unassigned");
+    }
+    if (data.priority !== undefined && data.priority !== oldCard.priority) {
+      changeDescriptions.push(`priority set to ${data.priority}`);
+    }
+    if (data.title !== undefined && data.title !== oldCard.title) {
+      changeDescriptions.push(`renamed to "${data.title}"`);
+    }
+    if (data.type !== undefined && data.type !== oldCard.type) {
+      changeDescriptions.push(`type changed to ${data.type}`);
+    }
+    if (
+      data.description !== undefined &&
+      data.description !== oldCard.description
+    ) {
+      changeDescriptions.push("description updated");
+    }
+
+    // Only fire a notification (and a realtime board broadcast) if the
+    // save actually changed something — clicking Save with no edits is a
+    // no-op.
+    if (changeDescriptions.length > 0) {
+      const notificationTitle = isNewAssignment
+        ? "You were assigned to a card"
+        : "Card updated";
+      const notificationBody = isNewAssignment
+        ? `You were assigned to "${updatedCard.title}"`
+        : `"${updatedCard.title}": ${changeDescriptions.join(", ")}`;
+
+      await DomainEvents.dispatch({
+        id: randomUUID(),
+        type: "CARD_UPDATED",
+        payload: {
+          boardId: boardId ?? "",
+          cardId,
+          changes: data,
+          // The card's CURRENT assignee (not just when assigneeId is part of this update)
+          assigneeId: updatedCard.assigneeId ?? undefined,
+          actorId,
+          notificationTitle,
+          notificationBody,
+        },
+      });
+    }
+
+    // Direct pings to @mentioned users — a different audience than the
+    // assignee, so these stay separate from the summary notification above.
+    for (const notification of notificationsToDispatch) {
+      await DomainEvents.dispatch({
+        id: randomUUID(),
+        type: "NOTIFICATION_CREATED",
+        payload: notification,
+      });
+    }
 
     return updatedCard;
   },
@@ -133,47 +199,4 @@ export const CardService = {
     return CardRepository.findByQuery(query, allowedBoardIds);
   },
 
-  async updateCardDescription(
-    cardId: string,
-    description: string,
-    actorId: string,
-    actorName: string,
-    boardId?: string,
-  ) {
-    if (!cardId) throw new Error("cardId is required");
-
-    const result = await CardRepository.updateDescription(
-      cardId,
-      description,
-      actorId,
-      actorName,
-    );
-
-    // A. Dispatch the board update (so everyone sees the new description)
-    await DomainEvents.dispatch({
-      id: randomUUID(),
-      type: "CARD_UPDATED",
-      payload: {
-        boardId: boardId ?? "",
-        cardId,
-        description,
-        // Notify the card's assignee, not the person editing it
-        assigneeId: result.updatedCard.assigneeId ?? undefined,
-        actorId,
-        actorName,
-        changes: {},
-      },
-    });
-
-    // B. Dispatch direct pings to the mentioned users (so their navbar bell lights up!)
-    for (const notification of result.notificationsToDispatch) {
-      await DomainEvents.dispatch({
-        id: randomUUID(),
-        type: "NOTIFICATION_CREATED",
-        payload: notification,
-      });
-    }
-
-    return result.updatedCard;
-  },
 };

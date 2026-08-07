@@ -22,6 +22,8 @@ export type DomainEventMap = {
     targetPosition: number;
     assigneeId?: string; // who should be notified
     actorId?: string; // who performed the move (excluded from notification)
+    notificationTitle?: string; // pre-built by the service, e.g. "Card moved"
+    notificationBody?: string; // e.g. "'Fix login' moved to Done"
   };
   CARD_CREATED: {
     boardId: string;
@@ -34,9 +36,9 @@ export type DomainEventMap = {
     cardId: string;
     assigneeId?: string; // who should be notified
     actorId?: string; // who performed the edit (excluded from notification)
-    description?: string;
-    actorName?: string;
     changes: UpdateCardPayload;
+    notificationTitle?: string; // pre-built by the service
+    notificationBody?: string; // e.g. "'Fix login': priority set to HIGH"
   };
   BOARD_UPDATED: { boardId: string }; // We will use this for WebSockets!
   CARD_DELETED: { cardId: string; actorId?: string };

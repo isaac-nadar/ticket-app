@@ -6,6 +6,7 @@ import { StyleProvider } from "./style-provider";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { ProfileSettings } from "@/components/profile-settings";
 import { NotificationBell } from "@/components/notification-bell";
+import { PushNotificationToggle } from "@/components/push-notification-toggle";
 import { cookies } from "next/headers";
 import { LogoutButton } from "@/components/logout-button";
 import { verifyJwt } from "@/lib/jwt";
@@ -63,6 +64,7 @@ export default async function RootLayout({
                 */}
                 <ThemeSwitcher />
                 {token && userId && <>
+                  <PushNotificationToggle />
                   <NotificationBell userId={userId} />
                   <ProfileSettings />
                   <LogoutButton />

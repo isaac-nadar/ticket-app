@@ -95,14 +95,6 @@ export const CardRepository = {
     });
   },
 
-  findAssigneeId: async (cardId: string): Promise<string | null> => {
-    const card = await prisma.card.findUnique({
-      where: { id: cardId },
-      select: { assigneeId: true },
-    });
-    return card?.assigneeId ?? null;
-  },
-
   findByBoard: async (boardId: string) => {
     return prisma.card.findMany({
       where: {
@@ -178,7 +170,14 @@ export const CardRepository = {
         },
       });
 
-      return updatedCard;
+      // 5. Grab the destination column's name so callers can build a
+      // human-readable notification without a second round-trip.
+      const targetColumn = await tx.column.findUnique({
+        where: { id: targetColumnId },
+        select: { name: true },
+      });
+
+      return { updatedCard, targetColumnName: targetColumn?.name ?? "another column" };
     }); // <-- If any query fails before this bracket, Postgres undoes ALL of them.
   },
 
@@ -195,10 +194,60 @@ export const CardRepository = {
     });
   },
 
-  async update(cardId: string, data: UpdateCardPayload) {
-    return prisma.card.update({
-      where: { id: cardId },
-      data,
+  findById: async (cardId: string) => {
+    return prisma.card.findUnique({ where: { id: cardId } });
+  },
+
+  // Single entry point for the "Save Card Details" flow — updates every
+  // field in one write and, if the description changed, scans it for
+  // @mentions in the same transaction (this used to be a separate
+  // updateDescription() call; merging them means one Save click can never
+  // produce more than one DB write or more than one set of notifications).
+  async update(
+    cardId: string,
+    data: UpdateCardPayload,
+    actorId?: string,
+    actorName?: string,
+  ) {
+    const mentionedUsernames =
+      data.description != null ? extractMentions(data.description) : [];
+
+    return prisma.$transaction(async (tx: Tx) => {
+      const updatedCard = await tx.card.update({
+        where: { id: cardId },
+        data,
+      });
+
+      type MentionNotification = {
+        userId: string;
+        actorId: string;
+        cardId: string;
+        title: string;
+        body: string;
+      };
+      let notificationsToDispatch: MentionNotification[] = [];
+
+      if (mentionedUsernames.length > 0 && actorId) {
+        const mentionedUsers = await tx.user.findMany({
+          where: { name: { in: mentionedUsernames } },
+        });
+
+        notificationsToDispatch = mentionedUsers
+          .filter((u: User) => u.id !== actorId)
+          .map((user: User) => ({
+            userId: user.id,
+            actorId,
+            cardId,
+            title: "You were mentioned",
+            body: `${actorName ?? "Someone"} mentioned you in "${updatedCard.title}"`,
+          }));
+
+        if (notificationsToDispatch.length > 0) {
+          await tx.notification.createMany({ data: notificationsToDispatch });
+        }
+      }
+
+      return { updatedCard, notificationsToDispatch };
     });
   },
 
@@ -255,49 +304,4 @@ export const CardRepository = {
     });
   },
 
-  updateDescription: async (
-    cardId: string,
-    description: string,
-    actorId: string,
-    actorName: string,
-  ) => {
-    const mentionedUsernames = extractMentions(description);
-
-    // 👇 1. Execute the DB logic and capture the results
-    const result = await prisma.$transaction(async (tx: Tx) => {
-      const updatedCard = await tx.card.update({
-        where: { id: cardId },
-        data: { description },
-      });
-
-      let notificationsToDispatch = [];
-
-      if (mentionedUsernames.length > 0) {
-        const mentionedUsers = await tx.user.findMany({
-          where: { name: { in: mentionedUsernames } },
-        });
-
-        notificationsToDispatch = mentionedUsers
-          .filter((u: User) => u.id !== actorId)
-          .map((user: User) => ({
-            userId: user.id,
-            actorId: actorId,
-            cardId: cardId,
-            title: "You were mentioned",
-            body: `${actorName} mentioned you in a card`,
-          }));
-
-        if (notificationsToDispatch.length > 0) {
-          await tx.notification.createMany({
-            data: notificationsToDispatch,
-          });
-        }
-      }
-
-      // Return BOTH the card and the array of notifications so we can broadcast them
-      return { updatedCard, notificationsToDispatch };
-    });
-
-    return result;
-  },
 };

@@ -3,6 +3,6 @@ self.addEventListener('push', (event) => {
 
   self.registration.showNotification(data.title, {
     body: data.body,
-    icon: '/icon.png',
+    icon: '/favicon.ico',
   });
 });
