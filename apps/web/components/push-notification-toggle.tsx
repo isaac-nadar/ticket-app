@@ -52,6 +52,9 @@ export function PushNotificationToggle() {
       if (permission !== "granted") return;
 
       const registration = await navigator.serviceWorker.ready;
+      // Note: registration with the push service (Google's FCM for
+      // Chrome, etc.) can take a few seconds — the button stays disabled
+      // via isLoading until this resolves.
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(

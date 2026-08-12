@@ -165,7 +165,7 @@ export function ProfileSettings({
               <Label>Current Password</Label>
               <Input
                 type="password"
-                placeholder="Leave blank to keep same"
+                placeholder="Required to change your password"
                 value={oldPass}
                 onChange={(e) => setOldPass(e.target.value)}
               />
