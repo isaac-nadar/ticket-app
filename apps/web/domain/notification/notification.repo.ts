@@ -1,12 +1,20 @@
 import prisma from "@/lib/db";
 
 export const NotificationRepository = {
-  create: async (userId: string, title: string, body?: string) => {
+  create: async (
+    userId: string,
+    title: string,
+    body?: string,
+    cardId?: string,
+    boardId?: string,
+  ) => {
     return prisma.notification.create({
       data: {
         userId,
         title,
         body,
+        cardId,
+        boardId,
       },
     });
   },

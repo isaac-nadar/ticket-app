@@ -29,6 +29,13 @@ const extractMentions = (text: string): string[] => {
   );
 };
 
+// The human-facing identifier, e.g. "CRD-12" — board prefix + sequence
+// number. Falls back to a generic prefix for boards that never got one.
+export const buildCardNumber = (
+  prefix: string | null | undefined,
+  sequenceNum: number,
+): string => `${prefix || "CRD"}-${sequenceNum}`;
+
 export const CardRepository = {
   create: async (
     title: string,
@@ -198,6 +205,17 @@ export const CardRepository = {
     return prisma.card.findUnique({ where: { id: cardId } });
   },
 
+  getCardNumber: async (cardId: string): Promise<string> => {
+    const card = await prisma.card.findUnique({
+      where: { id: cardId },
+      select: {
+        sequenceNum: true,
+        column: { select: { board: { select: { prefix: true } } } },
+      },
+    });
+    return buildCardNumber(card?.column.board.prefix, card?.sequenceNum ?? 0);
+  },
+
   // Single entry point for the "Save Card Details" flow — updates every
   // field in one write and, if the description changed, scans it for
   // @mentions in the same transaction (this used to be a separate
@@ -208,6 +226,8 @@ export const CardRepository = {
     data: UpdateCardPayload,
     actorId?: string,
     actorName?: string,
+    boardId?: string,
+    cardNumber?: string,
   ) {
     const mentionedUsernames =
       data.description != null ? extractMentions(data.description) : [];
@@ -222,29 +242,32 @@ export const CardRepository = {
         userId: string;
         actorId: string;
         cardId: string;
+        boardId: string;
         title: string;
         body: string;
       };
       let notificationsToDispatch: MentionNotification[] = [];
 
-      if (mentionedUsernames.length > 0 && actorId) {
+      if (mentionedUsernames.length > 0 && actorId && boardId) {
         const mentionedUsers = await tx.user.findMany({
           where: { name: { in: mentionedUsernames } },
         });
 
+        // Note: these are only returned, not written here — the caller
+        // dispatches NOTIFICATION_CREATED for each, and the domain event
+        // listener is the single place that persists + fans out
+        // notifications (DB row, unread count, pusher, web push). Writing
+        // here too would double the row and skip all of that.
         notificationsToDispatch = mentionedUsers
           .filter((u: User) => u.id !== actorId)
           .map((user: User) => ({
             userId: user.id,
             actorId,
             cardId,
+            boardId,
             title: "You were mentioned",
-            body: `${actorName ?? "Someone"} mentioned you in "${updatedCard.title}"`,
+            body: `${actorName ?? "Someone"} mentioned you in ${cardNumber ?? "CRD-?"} "${updatedCard.title}"`,
           }));
-
-        if (notificationsToDispatch.length > 0) {
-          await tx.notification.createMany({ data: notificationsToDispatch });
-        }
       }
 
       return { updatedCard, notificationsToDispatch };

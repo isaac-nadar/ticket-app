@@ -5,4 +5,6 @@ export type Notification = {
   body: string;
   read: boolean;
   createdAt: string;
+  cardId: string | null;
+  boardId: string | null;
 };

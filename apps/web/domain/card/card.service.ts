@@ -42,6 +42,12 @@ export const CardService = {
     return { title: card.title, assigneeId: card.assigneeId };
   },
 
+  // Human-facing identifier, e.g. "CRD-12" — used to anchor every
+  // notification message to the same number the board/UI shows.
+  getCardNumber: async (cardId: string) => {
+    return CardRepository.getCardNumber(cardId);
+  },
+
   findDoneOlderThan: async (days: number) => {
     return CardRepository.findDoneOlderThan(days);
   },
@@ -62,11 +68,10 @@ export const CardService = {
       throw new Error("Invalid target position");
     }
 
-    const { updatedCard, targetColumnName } = await CardRepository.reorder(
-      cardId,
-      targetColumnId,
-      targetPosition,
-    );
+    const [{ updatedCard, targetColumnName }, cardNumber] = await Promise.all([
+      CardRepository.reorder(cardId, targetColumnId, targetPosition),
+      CardRepository.getCardNumber(cardId),
+    ]);
 
     await DomainEvents.dispatch({
       id: randomUUID(),
@@ -79,7 +84,7 @@ export const CardService = {
         assigneeId,
         actorId,
         notificationTitle: "Card moved",
-        notificationBody: `"${updatedCard.title}" moved to ${targetColumnName}`,
+        notificationBody: `${cardNumber} "${updatedCard.title}" moved to ${targetColumnName}`,
       },
     });
     return updatedCard;
@@ -98,7 +103,10 @@ export const CardService = {
   ) {
     if (!cardId) throw new Error("cardId is required");
 
-    const oldCard = await CardRepository.findById(cardId);
+    const [oldCard, cardNumber] = await Promise.all([
+      CardRepository.findById(cardId),
+      CardRepository.getCardNumber(cardId),
+    ]);
     if (!oldCard) throw new Error("Card not found");
 
     const { updatedCard, notificationsToDispatch } = await CardRepository.update(
@@ -106,6 +114,8 @@ export const CardService = {
       data,
       actorId,
       actorName,
+      boardId,
+      cardNumber,
     );
 
     const changeDescriptions: string[] = [];
@@ -141,8 +151,8 @@ export const CardService = {
         ? "You were assigned to a card"
         : "Card updated";
       const notificationBody = isNewAssignment
-        ? `You were assigned to "${updatedCard.title}"`
-        : `"${updatedCard.title}": ${changeDescriptions.join(", ")}`;
+        ? `You were assigned to ${cardNumber} "${updatedCard.title}"`
+        : `${cardNumber} "${updatedCard.title}": ${changeDescriptions.join(", ")}`;
 
       await DomainEvents.dispatch({
         id: randomUUID(),

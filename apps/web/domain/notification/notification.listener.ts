@@ -21,6 +21,8 @@ export function registerNotificationListeners() {
     actorId: string | undefined,
     title: string,
     body: string,
+    cardId?: string,
+    boardId?: string,
   ) {
     if (!userId || !event.id) return;
 
@@ -36,19 +38,24 @@ export function registerNotificationListeners() {
     await redis.set(idempotencyKey, "1", "EX", 60 * 60);
 
     // 2. Save to PostgreSQL Database
-    await NotificationService.create(userId, title, body);
+    await NotificationService.create(userId, title, body, cardId, boardId);
 
     // 3. Update the Unread Count in Redis
     const unreadCount = await redis.incr(notificationKeys.unreadCount(userId));
 
-    // 3b. Push the live count + notification to the bell in real time
+    // 3b. Push the live count + notification to the bell in real time —
+    // cardId/boardId let the client deep-link straight to the card.
     await pusherServer.trigger(`user-${userId}`, "notification", {
       count: unreadCount,
       title,
       body,
+      cardId,
+      boardId,
     });
 
-    // 4. Handle Web Push Notifications (PWA)
+    // 4. Handle Web Push Notifications (PWA) — same deep-link data, carried
+    // through the service worker's push payload so a click on the OS
+    // notification (even with no tab open) can open the right card.
     const subs = await PushService.getUserSubscriptions(userId);
     for (const sub of subs) {
       if (!isPushKeys(sub.keys)) continue;
@@ -56,7 +63,7 @@ export function registerNotificationListeners() {
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: sub.keys },
-          JSON.stringify({ title, body }),
+          JSON.stringify({ title, body, cardId, boardId }),
         );
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Unexpected error";
@@ -78,6 +85,8 @@ export function registerNotificationListeners() {
       payload.actorId,
       payload.notificationTitle ?? "Card moved",
       payload.notificationBody ?? `Card ${payload.cardId} moved to new column`,
+      payload.cardId,
+      payload.boardId,
     );
   });
 
@@ -88,6 +97,8 @@ export function registerNotificationListeners() {
       payload.actorId,
       "New card created",
       `Card ${payload.cardId} created`,
+      payload.cardId,
+      payload.boardId,
     );
   });
 
@@ -98,6 +109,8 @@ export function registerNotificationListeners() {
       payload.actorId,
       payload.notificationTitle ?? "Card updated",
       payload.notificationBody ?? `Card ${payload.cardId} was updated`,
+      payload.cardId,
+      payload.boardId,
     );
   });
 
@@ -109,6 +122,8 @@ export function registerNotificationListeners() {
       payload.actorId,
       payload.title,
       payload.body,
+      payload.cardId,
+      payload.boardId,
     );
   });
 }

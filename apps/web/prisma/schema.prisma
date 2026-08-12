@@ -132,6 +132,7 @@ model Notification {
   // 👇 ADDED FOR MENTIONS:
   actorId String? // The ID of the user who @ mentioned them
   cardId  String? // The ID of the card they were mentioned in
+  boardId String? // The board that card lives on — lets the client deep-link without an extra lookup
   card    Card?   @relation(fields: [cardId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id])
 

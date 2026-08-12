@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, startTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Bell, Check, CheckCircle2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -22,6 +23,7 @@ import type { Notification as AppNotification } from "@/domain/notification/noti
 import { pusherClient } from "@/lib/pusher-client";
 
 export function NotificationBell({ userId }: { userId: string }) {
+  const router = useRouter();
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<AppNotification[] | []>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -45,7 +47,13 @@ export function NotificationBell({ userId }: { userId: string }) {
     const channel = pusherClient.subscribe(channelName);
     channel.bind(
       "notification",
-      (data: { count: number; title: string; body: string }) => {
+      (data: {
+        count: number;
+        title: string;
+        body: string;
+        cardId?: string;
+        boardId?: string;
+      }) => {
         setUnreadCount(data.count);
         if (isOpen) {
           loadNotifications();
@@ -60,7 +68,16 @@ export function NotificationBell({ userId }: { userId: string }) {
           Notification.permission === "granted" &&
           document.hidden
         ) {
-          new Notification(data.title, { body: data.body });
+          const desktopNotification = new Notification(data.title, {
+            body: data.body,
+          });
+          desktopNotification.onclick = () => {
+            window.focus();
+            if (data.cardId && data.boardId) {
+              router.push(`/boards/${data.boardId}?card=${data.cardId}`);
+            }
+            desktopNotification.close();
+          };
         }
       },
     );
@@ -106,6 +123,17 @@ export function NotificationBell({ userId }: { userId: string }) {
 
     // Fire the background action
     await markAsReadAction({ id });
+  };
+
+  // 3b. Open the card a notification is about, marking it read on the way.
+  const handleNotificationClick = (notif: AppNotification) => {
+    if (!notif.read) {
+      handleMarkAsRead(notif.id);
+    }
+    if (notif.cardId && notif.boardId) {
+      setIsOpen(false);
+      router.push(`/boards/${notif.boardId}?card=${notif.cardId}`);
+    }
   };
 
   // 4. Mark all as read
@@ -172,9 +200,10 @@ export function NotificationBell({ userId }: { userId: string }) {
             notifications.map((notif: AppNotification) => (
               <div
                 key={notif.id}
+                onClick={() => handleNotificationClick(notif)}
                 className={`flex gap-3 p-4 border-b border-border/50 transition-colors ${
-                  notif.read ? "bg-background opacity-70" : "bg-primary/5"
-                }`}
+                  notif.cardId && notif.boardId ? "cursor-pointer hover:bg-muted/40" : ""
+                } ${notif.read ? "bg-background opacity-70" : "bg-primary/5"}`}
               >
                 <div className="mt-0.5">
                   <CheckCircle2
@@ -182,7 +211,10 @@ export function NotificationBell({ userId }: { userId: string }) {
                   />
                 </div>
                 <div className="flex flex-col gap-1 flex-1">
-                  <p className="text-sm">{notif.title}</p>
+                  <p className="text-sm font-medium">{notif.title}</p>
+                  {notif.body && (
+                    <p className="text-sm text-muted-foreground">{notif.body}</p>
+                  )}
                   <span className="text-xs text-muted-foreground">
                     {formatDistanceToNow(new Date(notif.createdAt), {
                       addSuffix: true,
@@ -194,7 +226,10 @@ export function NotificationBell({ userId }: { userId: string }) {
                     variant="ghost"
                     size="icon"
                     className="size-6 shrink-0 rounded-full hover:bg-primary/10 hover:text-primary"
-                    onClick={() => handleMarkAsRead(notif.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMarkAsRead(notif.id);
+                    }}
                   >
                     <Check className="size-3" />
                   </Button>

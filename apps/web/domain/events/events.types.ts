@@ -46,6 +46,7 @@ export type DomainEventMap = {
     userId: string;
     actorId: string;
     cardId: string;
+    boardId: string;
     title: string;
     body: string;
   };

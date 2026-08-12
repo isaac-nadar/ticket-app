@@ -4,8 +4,14 @@ import { notificationKeys } from "./notification.keys";
 
 export const NotificationService = {
   // Used by the domain event listener — keeps prisma out of listener code.
-  create: async (userId: string, title: string, body?: string) => {
-    return NotificationRepository.create(userId, title, body);
+  create: async (
+    userId: string,
+    title: string,
+    body?: string,
+    cardId?: string,
+    boardId?: string,
+  ) => {
+    return NotificationRepository.create(userId, title, body, cardId, boardId);
   },
 
   markRead: async (notificationId: string, userId: string) => {

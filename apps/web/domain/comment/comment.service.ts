@@ -25,7 +25,10 @@ export const CommentService = {
 
     // 2. Notify the card's CURRENT assignee (read fresh from the DB, not
     // trusted from the client), skipping self-notification.
-    const cardSummary = await CardService.getSummary(params.cardId);
+    const [cardSummary, cardNumber] = await Promise.all([
+      CardService.getSummary(params.cardId),
+      CardService.getCardNumber(params.cardId),
+    ]);
 
     if (
       cardSummary?.assigneeId &&
@@ -38,8 +41,9 @@ export const CommentService = {
           userId: cardSummary.assigneeId,
           actorId: params.userId,
           cardId: params.cardId,
+          boardId: params.boardId,
           title: "New comment",
-          body: `${params.userName ?? "Someone"} commented on "${cardSummary.title}"`,
+          body: `${params.userName ?? "Someone"} commented on ${cardNumber} "${cardSummary.title}"`,
         },
       });
     }
