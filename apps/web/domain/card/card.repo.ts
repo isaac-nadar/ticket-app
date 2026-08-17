@@ -205,6 +205,16 @@ export const CardRepository = {
     return prisma.card.findUnique({ where: { id: cardId } });
   },
 
+  // The board a card actually lives on — never trust a client-supplied
+  // boardId for cache keys / notifications, derive it from the card.
+  findBoardId: async (cardId: string): Promise<string | null> => {
+    const card = await prisma.card.findUnique({
+      where: { id: cardId },
+      select: { column: { select: { boardId: true } } },
+    });
+    return card?.column.boardId ?? null;
+  },
+
   getCardNumber: async (cardId: string): Promise<string> => {
     const card = await prisma.card.findUnique({
       where: { id: cardId },

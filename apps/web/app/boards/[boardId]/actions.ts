@@ -54,8 +54,13 @@ export async function moveCardAction(
 
     await AuthzService.requireCardAccess(actor.userId, cardId, actor.role);
 
+    // Never trust the client-supplied boardId for cache keys / the
+    // notification payload — derive it from the card itself.
+    const realBoardId = await CardService.getBoardId(cardId);
+    if (!realBoardId) return { success: false, error: "Card not found" };
+
     await CardService.reorderCard(
-      boardId,
+      realBoardId,
       cardId,
       targetColumnId,
       targetPosition,
@@ -63,11 +68,11 @@ export async function moveCardAction(
       actor?.userId,
     );
 
-    const CACHE_KEY = `board:${boardId}:data`;
+    const CACHE_KEY = `board:${realBoardId}:data`;
     await redis.del(CACHE_KEY);
     console.log(`🧹 [Cache Cleared] Purged Redis key: ${CACHE_KEY}`);
 
-    revalidatePath(`/boards/${boardId}`);
+    revalidatePath(`/boards/${realBoardId}`);
 
     return { success: true };
   } catch (error) {
@@ -154,6 +159,17 @@ export async function moveColumnAction(
 
     await requireBoardAccess(actor.userId, boardId, actor.role);
 
+    // Same cross-board injection guard as createCardAction — the column
+    // being reordered must actually belong to the board the caller has
+    // access to.
+    const columnBelongsToBoard = await ColumnService.belongsToBoard(
+      columnId,
+      boardId,
+    );
+    if (!columnBelongsToBoard) {
+      return { success: false, error: "Column not found on this board" };
+    }
+
     await ColumnService.updateColumnPosition(columnId, newPosition);
     await redis.del(`board:${boardId}:data`);
     revalidatePath(`/boards/${boardId}`);
@@ -212,17 +228,23 @@ export const updateCardDetailsAction = async (
     // Also doubles as the "card exists" check — a nonexistent cardId can't
     // be accessible to anyone, so requireCardAccess rejects it too.
     await AuthzService.requireCardAccess(actor.userId, cardId, actor.role);
+    await enforceRateLimit(actor.userId);
+
+    // Never trust the client-supplied boardId for cache keys / the
+    // notification payload — derive it from the card itself.
+    const realBoardId = await CardService.getBoardId(cardId);
+    if (!realBoardId) return { success: false, error: "Card not found" };
 
     const updatedCard = await CardService.updateCardDetails(
       cardId,
       data,
-      boardId,
+      realBoardId,
       actor.userId,
       actor.name,
     );
 
-    await redis.del(`board:${boardId}:data`);
-    revalidatePath(`/boards/${boardId}`);
+    await redis.del(`board:${realBoardId}:data`);
+    revalidatePath(`/boards/${realBoardId}`);
     return { success: true, data: updatedCard };
 
   } catch (error) {
@@ -244,12 +266,11 @@ export const getCardCommentsAction = createSafeAction(
 export const addCommentAction = createSafeAction(
   async (
     {
-      boardId,
       cardId,
       text,
       assigneeId,
     }: {
-      boardId: string;
+      boardId: string; // ignored — the real boardId is derived from cardId below
       cardId: string;
       text: string;
       assigneeId: string | null;
@@ -259,6 +280,11 @@ export const addCommentAction = createSafeAction(
     await AuthzService.requireCardAccess(user.userId, cardId, user.role);
     await enforceRateLimit(user.userId);
 
+    // Never trust the client-supplied boardId for cache keys / the
+    // notification payload — derive it from the card itself.
+    const realBoardId = await CardService.getBoardId(cardId);
+    if (!realBoardId) return { success: false, error: "Card not found" };
+
     // Collapse accidental double-submits within a short window.
     const idempotencyKey = createHash("sha256")
       .update(`add-comment:${user.userId}:${cardId}:${text}:${Math.floor(Date.now() / 5000)}`)
@@ -266,7 +292,7 @@ export const addCommentAction = createSafeAction(
 
     await IdempotencyService.execute(idempotencyKey, () =>
       CommentService.addComment({
-        boardId,
+        boardId: realBoardId,
         cardId,
         text,
         userId: user.userId,
@@ -275,8 +301,8 @@ export const addCommentAction = createSafeAction(
       }),
     );
 
-    await redis.del(`board:${boardId}:data`);
-    revalidatePath(`/boards/${boardId}`);
+    await redis.del(`board:${realBoardId}:data`);
+    revalidatePath(`/boards/${realBoardId}`);
 
     return { success: true, data: null };
   },

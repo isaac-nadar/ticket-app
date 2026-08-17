@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, startTransition } from "react";
+import { useState, useEffect, useRef, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, Check, CheckCircle2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -29,6 +29,15 @@ export function NotificationBell({ userId }: { userId: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Read inside the Pusher callback below instead of putting `isOpen` in
+  // that effect's deps — otherwise every popover open/close would tear
+  // down and recreate the channel subscription, with a real chance of
+  // missing a live event in the gap.
+  const isOpenRef = useRef(isOpen);
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
+
   // 1. EAGER LOAD: Fetch unread count using Server Action
   useEffect(() => {
     getUnreadCountAction().then((res) => {
@@ -55,7 +64,7 @@ export function NotificationBell({ userId }: { userId: string }) {
         boardId?: string;
       }) => {
         setUnreadCount(data.count);
-        if (isOpen) {
+        if (isOpenRef.current) {
           loadNotifications();
         }
 
@@ -89,7 +98,7 @@ export function NotificationBell({ userId }: { userId: string }) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, isOpen]);
+  }, [userId]);
 
   const loadNotifications = async () => {
     startTransition(() => {

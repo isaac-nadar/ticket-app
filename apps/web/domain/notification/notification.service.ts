@@ -17,20 +17,29 @@ export const NotificationService = {
   markRead: async (notificationId: string, userId: string) => {
     const notif = await NotificationRepository.findById(notificationId);
 
-    // already read → do nothing
-    if (!notif || notif.read) {
+    // Doesn't exist or isn't yours → treat identically (return null)
+    // rather than leaking a different result for "not found" vs. "not
+    // mine", which would let a caller enumerate other users' notification
+    // ids and read-state.
+    if (!notif || notif.userId !== userId) {
+      return null;
+    }
+
+    // Already read → no-op.
+    if (notif.read) {
       return notif;
     }
 
     // mark as read in DB (source of truth)
     await NotificationRepository.markAsRead(notificationId, userId);
 
-    // sync Redis safely
+    // Sync Redis. DECR is atomic, but the read-then-write below to guard
+    // against going negative isn't — that's fine, it's just self-healing
+    // for a cache (unreadCount() also clamps defensively on read).
     const key = notificationKeys.unreadCount(userId);
-    const current = await redis.get(key);
-
-    if (current !== null && Number(current) > 0) {
-      await redis.decr(key);
+    const newCount = await redis.decr(key);
+    if (newCount < 0) {
+      await redis.set(key, 0);
     }
 
     return notif;
@@ -46,7 +55,9 @@ export const NotificationService = {
     const cached = await redis.get(notificationKeys.unreadCount(userId));
 
     if (cached !== null) {
-      return Number(cached);
+      // Defensive clamp — the decrement path self-heals but isn't
+      // strictly atomic, so a reader could transiently see -1.
+      return Math.max(0, Number(cached));
     }
 
     // fallback to DB

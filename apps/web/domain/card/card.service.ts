@@ -48,6 +48,12 @@ export const CardService = {
     return CardRepository.getCardNumber(cardId);
   },
 
+  // The card's real board — callers should use this instead of trusting a
+  // client-supplied boardId for cache keys / notification targeting.
+  getBoardId: async (cardId: string) => {
+    return CardRepository.findBoardId(cardId);
+  },
+
   findDoneOlderThan: async (days: number) => {
     return CardRepository.findDoneOlderThan(days);
   },
@@ -166,6 +172,30 @@ export const CardService = {
           actorId,
           notificationTitle,
           notificationBody,
+        },
+      });
+    }
+
+    // Unassignment is a different audience than the rest of this update —
+    // the *previous* assignee, who won't hear about it from the CARD_UPDATED
+    // dispatch above since it targets the (now empty) current assignee.
+    const wasUnassigned =
+      data.assigneeId !== undefined &&
+      data.assigneeId !== oldCard.assigneeId &&
+      !data.assigneeId &&
+      !!oldCard.assigneeId;
+
+    if (wasUnassigned && actorId && oldCard.assigneeId !== actorId) {
+      await DomainEvents.dispatch({
+        id: randomUUID(),
+        type: "NOTIFICATION_CREATED",
+        payload: {
+          userId: oldCard.assigneeId!,
+          actorId,
+          cardId,
+          boardId: boardId ?? "",
+          title: "Unassigned from a card",
+          body: `You were unassigned from ${cardNumber} "${updatedCard.title}"`,
         },
       });
     }

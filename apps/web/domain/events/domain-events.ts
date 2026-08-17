@@ -21,6 +21,21 @@ const subscribers: Record<string, EventHandler<any>[]> = {};
 
 // const handlers: EventHandler[] = [];
 
+// Server Actions and Route Handlers can land in separate module graphs,
+// each with their own copy of `subscribers`. Importing bootstrap here
+// (idempotent, see domain/bootstrap.ts) guarantees this module instance
+// has listeners registered before dispatch looks anything up, regardless
+// of which entry point triggered it. Cached so dispatch — a hot path,
+// called on every card move/update/comment/attachment — only pays for the
+// dynamic import once per module instance instead of on every call.
+let bootstrapReady: Promise<unknown> | null = null;
+function ensureBootstrap() {
+  if (!bootstrapReady) {
+    bootstrapReady = import("@/domain/bootstrap");
+  }
+  return bootstrapReady;
+}
+
 export const DomainEvents = {
   subscribe: <T extends keyof DomainEventMap>(
     eventType: T,
@@ -33,12 +48,7 @@ export const DomainEvents = {
   },
 
   dispatch: async (event: DomainEvent) => {
-    // Server Actions and Route Handlers can land in separate module graphs,
-    // each with their own copy of `subscribers`. Registering listeners here
-    // (idempotent, see domain/bootstrap.ts) guarantees this module instance
-    // has them before we look anything up, regardless of which entry point
-    // triggered the dispatch.
-    await import("@/domain/bootstrap");
+    await ensureBootstrap();
 
     const handlers = subscribers[event.type] || [];
     for (const handler of handlers) {

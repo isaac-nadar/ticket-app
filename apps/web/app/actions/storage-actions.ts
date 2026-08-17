@@ -3,6 +3,7 @@
 import { createSafeAction } from "@/lib/safe-action";
 import { StorageService } from "@/domain/storage/storage.service";
 import { AuthzService } from "@/domain/authz/authz.service";
+import { CardService } from "@/domain/card/card.service";
 import { enforceRateLimit } from "@/domain/rate-limit/rate-limit.service";
 
 // 1. Ask AWS for a Presigned URL
@@ -34,8 +35,13 @@ export const saveAttachmentAction = createSafeAction(
   ) => {
     await AuthzService.requireCardAccess(user.userId, data.cardId, user.role);
 
+    // Never trust the client-supplied boardId for cache keys / the
+    // notification payload — derive it from the card itself.
+    const realBoardId = await CardService.getBoardId(data.cardId);
+    if (!realBoardId) throw new Error("Card not found");
+
     const attachment = await StorageService.saveAttachment(
-      data,
+      { ...data, boardId: realBoardId },
       user.userId,
       user.name,
     );

@@ -1,18 +1,5 @@
 import { UpdateCardPayload } from "../card/card.repo";
 
-export type CardMovedEvent = {
-  cardId: string;
-  targetColumnId: string;
-  targetPosition: number;
-};
-
-export type CardCommentEvent = {
-  cardId: string;
-  assigneeId: string;
-  content: string;
-  commentedBy: string;
-};
-
 // 1. Define every event and its exact payload shape
 export type DomainEventMap = {
   CARD_MOVED: {
