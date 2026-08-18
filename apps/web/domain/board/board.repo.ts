@@ -72,7 +72,7 @@ export const BoardReadRepository = {
           orderBy: { position: "asc" },
           include: {
             cards: {
-              orderBy: { createdAt: "asc" },
+              orderBy: { position: "asc" },
             },
           },
         },
@@ -95,7 +95,7 @@ export const BoardReadRepository = {
           orderBy: { position: "asc" },
           include: {
             cards: {
-              orderBy: { createdAt: "asc" },
+              orderBy: { position: "asc" },
               include: {
                 assignee: true,
               },
