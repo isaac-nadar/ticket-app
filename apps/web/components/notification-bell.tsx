@@ -20,7 +20,6 @@ import {
   markAllAsReadAction,
 } from "@/app/actions/notification-actions";
 import type { Notification as AppNotification } from "@/domain/notification/notification.type";
-import { pusherClient } from "@/lib/pusher-client";
 
 export function NotificationBell({ userId }: { userId: string }) {
   const router = useRouter();
@@ -50,52 +49,47 @@ export function NotificationBell({ userId }: { userId: string }) {
   // 1b. REAL-TIME: Push the unread count (and refresh the list, if open) the
   // moment a notification is created for this user — no manual refresh needed.
   useEffect(() => {
-    if (!pusherClient || !userId) return;
+    if (!userId) return;
 
-    const channelName = `user-${userId}`;
-    const channel = pusherClient.subscribe(channelName);
-    channel.bind(
-      "notification",
-      (data: {
+    const eventSource = new EventSource("/api/sse/notifications");
+    eventSource.addEventListener("notification", (event) => {
+      const data: {
         count: number;
         title: string;
         body: string;
         cardId?: string;
         boardId?: string;
-      }) => {
-        setUnreadCount(data.count);
-        if (isOpenRef.current) {
-          loadNotifications();
-        }
+      } = JSON.parse(event.data);
 
-        // Instant desktop popup for this real-time event — only while the
-        // tab isn't focused, since the badge above already covers "looking
-        // at it right now". This is on top of the true Web Push path
-        // (PushNotificationToggle), which also fires when no tab is open.
-        if (
-          typeof Notification !== "undefined" &&
-          Notification.permission === "granted" &&
-          document.hidden
-        ) {
-          const desktopNotification = new Notification(data.title, {
-            body: data.body,
-          });
-          desktopNotification.onclick = () => {
-            window.focus();
-            if (data.cardId && data.boardId) {
-              router.push(`/boards/${data.boardId}?card=${data.cardId}`);
-            }
-            desktopNotification.close();
-          };
-        }
-      },
-    );
+      setUnreadCount(data.count);
+      if (isOpenRef.current) {
+        loadNotifications();
+      }
+
+      // Instant desktop popup for this real-time event — only while the
+      // tab isn't focused, since the badge above already covers "looking
+      // at it right now". This is on top of the true Web Push path
+      // (PushNotificationToggle), which also fires when no tab is open.
+      if (
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted" &&
+        document.hidden
+      ) {
+        const desktopNotification = new Notification(data.title, {
+          body: data.body,
+        });
+        desktopNotification.onclick = () => {
+          window.focus();
+          if (data.cardId && data.boardId) {
+            router.push(`/boards/${data.boardId}?card=${data.cardId}`);
+          }
+          desktopNotification.close();
+        };
+      }
+    });
 
     return () => {
-      if (pusherClient) {
-        pusherClient.unsubscribe(channelName);
-        channel.unbind_all();
-      }
+      eventSource.close();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);

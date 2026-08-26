@@ -1,6 +1,6 @@
 import { DomainEvents } from "@/domain/events/domain-events";
 import { redis } from "@/lib/redis";
-import { pusherServer } from "@/lib/pusher";
+import { broadcast } from "@/lib/sse-hub";
 import { notificationKeys } from "./notification.keys";
 import { eventKeys } from "@/domain/events/event.keys";
 import { webpush } from "@/lib/web-push";
@@ -45,7 +45,7 @@ export function registerNotificationListeners() {
 
     // 3b. Push the live count + notification to the bell in real time —
     // cardId/boardId let the client deep-link straight to the card.
-    await pusherServer.trigger(`user-${userId}`, "notification", {
+    broadcast(`user-${userId}`, "notification", {
       count: unreadCount,
       title,
       body,

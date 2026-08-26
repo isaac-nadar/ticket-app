@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { pusherClient } from "@/lib/pusher-client";
 import {
   DndContext,
   PointerSensor,
@@ -77,21 +76,19 @@ export function BoardClient({
   const uniqueTags = Array.from(allTags);
 
   useEffect(() => {
-    if (!pusherClient) return;
-
-    const channelName = `board-${board.id}`;
-    const channel = pusherClient.subscribe(channelName);
-    channel.bind("board-updated", (data: { message: string }) => {
+    // board.id only — NOT the whole `board` object, which changes on every
+    // optimistic drag update and would otherwise tear down/reconnect the
+    // stream constantly.
+    const eventSource = new EventSource(`/api/sse/board/${board.id}`);
+    eventSource.addEventListener("board-updated", () => {
       router.refresh();
     });
 
     return () => {
-      if (pusherClient) {
-        pusherClient.unsubscribe(channelName);
-        channel.unbind_all();
-      }
+      eventSource.close();
     };
-  }, [board, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [board.id, router]);
 
   useEffect(() => {
     setBoard(initialBoard);

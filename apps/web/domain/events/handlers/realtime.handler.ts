@@ -1,23 +1,17 @@
 import { DomainEvents } from "../domain-events";
-import { pusherServer } from "@/lib/pusher";
+import { broadcast } from "@/lib/sse-hub";
 
 export function registerRealtimeListeners() {
-  // Whenever the board updates, we tell Pusher to refresh the UI for everyone looking at it!
+  // Whenever the board updates, we tell every connected viewer to refresh!
   DomainEvents.subscribe("CARD_MOVED", async ({ boardId }) => {
-    await pusherServer.trigger(`board-${boardId}`, "board-updated", {
-      message: "Refresh!",
-    });
+    broadcast(`board-${boardId}`, "board-updated", { message: "Refresh!" });
   });
 
   DomainEvents.subscribe("CARD_CREATED", async ({ boardId }) => {
-    await pusherServer.trigger(`board-${boardId}`, "board-updated", {
-      message: "Refresh!",
-    });
+    broadcast(`board-${boardId}`, "board-updated", { message: "Refresh!" });
   });
 
   DomainEvents.subscribe("CARD_UPDATED", async ({ boardId }) => {
-    await pusherServer.trigger(`board-${boardId}`, "board-updated", {
-      message: "Refresh!",
-    });
+    broadcast(`board-${boardId}`, "board-updated", { message: "Refresh!" });
   });
 }
